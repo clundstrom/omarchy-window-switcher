@@ -61,6 +61,41 @@ Item {
   property int openSerial: 0
   property var openingOverrides: ({})
   property string appliedSettingsKey: ""
+  // Bounded, memory-only focus diagnostics; no titles, keystrokes or disk IO.
+  property var lifecycleEvents: []
+  property bool modifierTrackingSeen: false
+  function finishModifierRelease() {
+    if (opened && activationMode === WindowModel.ACTIVATION_RELEASE
+        && renamingWorkspaceId <= 0 && !leftWorkspaceModifier.pressed && !rightWorkspaceModifier.pressed) {
+      noteLifecycle("global-modifier-released")
+      commitSelected()
+    }
+  }
+
+  // Track release in the compositor, including releases before the new layer
+  // receives keyboard focus. The ordinary key surface remains a fallback.
+  GlobalShortcut {
+    id: leftWorkspaceModifier
+    appid: "community.window-switcher"
+    name: "modifier-left"
+    description: "Workspace switcher left modifier state"
+    onPressed: { root.modifierTrackingSeen = true; root.noteLifecycle("global-modifier-pressed") }
+    onReleased: root.finishModifierRelease()
+  }
+  GlobalShortcut {
+    id: rightWorkspaceModifier
+    appid: "community.window-switcher"
+    name: "modifier-right"
+    description: "Workspace switcher right modifier state"
+    onPressed: { root.modifierTrackingSeen = true; root.noteLifecycle("global-modifier-pressed") }
+    onReleased: root.finishModifierRelease()
+  }
+  function noteLifecycle(event) {
+    lifecycleEvents = lifecycleEvents.concat([{
+      event: event, time: Date.now(), opened: opened,
+      focus: keySurface.activeFocus, armed: modifierReleaseArmed
+    }]).slice(-16)
+  }
 
   WorkspacePresentation { id: workspacePresentation }
   readonly property bool compactWorkspace: workspacePresentation.enabled
@@ -469,13 +504,14 @@ Item {
 
   function beginClose() {
     if (!surfaceVisible) return
+    noteLifecycle("closing")
     captureRamp.stop()
     activeCaptureLimit = 0
     renamingWorkspaceId = 0
     opened = false
     modifierReleaseArmed = false
     revealProgress = 0
-    closeAnimation.interval = Math.max(1, animationMs)
+    closeAnimation.interval = Math.max(1, compactWorkspace ? 0 : Style.duration(animationMs))
     closeAnimation.restart()
   }
 
@@ -635,7 +671,12 @@ Item {
     Hyprland.refreshMonitors()
     geometrySettle.restart()
     rebuildWindows(options.direction)
-    Qt.callLater(function() { if (root.opened) root.revealProgress = 1 })
+    noteLifecycle("opened")
+    Qt.callLater(function() {
+      if (!root.opened) return
+      root.revealProgress = 1
+      if (root.modifierTrackingSeen) root.finishModifierRelease()
+    })
     focusDelay.restart()
   }
 
@@ -677,6 +718,10 @@ Item {
       keyFocus: keySurface.activeFocus,
       releaseArmed: modifierReleaseArmed,
       activationMode: activationMode,
+      closeTimerRunning: closeAnimation.running,
+      lifecycleEvents: lifecycleEvents,
+      modifierTrackingSeen: modifierTrackingSeen,
+      globalModifierHeld: leftWorkspaceModifier.pressed || rightWorkspaceModifier.pressed,
       targetScreen: targetScreen ? String(targetScreen.name || "") : ""
     })
   }
@@ -691,6 +736,15 @@ Item {
     switcherOpen: root.opened
     onRefreshRequested: modelRefresh.restart()
     onGeometryRefreshRequested: geometrySettle.restart()
+    onGeometrySnapshotReceived: {
+      if (root.opened && root.compactWorkspace && geometrySettle.running
+          && root.activeCaptureLimit === 0) {
+        geometrySettle.stop()
+        root.rebuildWindows()
+        root.beginCaptureRamp()
+        root.noteLifecycle("geometry-ready")
+      }
+    }
     onActiveWindowChanged: root.noteActiveToplevel()
     onWorkspaceFocusChanged: function(workspaceId) { root.noteWorkspaceUsed(workspaceId) }
     onScreenLayoutChanged: {
@@ -707,6 +761,7 @@ Item {
       if (!root.opened) return
       keySurface.forceActiveFocus()
       root.modifierReleaseArmed = true
+      root.noteLifecycle("release-armed")
     }
   }
 
@@ -719,6 +774,7 @@ Item {
       var target = root.pendingActivation
       var serial = root.openSerial
       root.surfaceVisible = false
+      root.noteLifecycle("hidden")
       root.filteredWindows = []
       root.windowGroups = []
       root.query = ""
@@ -755,7 +811,7 @@ Item {
   Timer {
     id: captureRamp
 
-    interval: 40
+    interval: root.compactWorkspace ? 16 : 40
     repeat: true
     onTriggered: {
       if (!root.opened || root.previewMode === WindowModel.PREVIEW_NONE) {
@@ -810,13 +866,7 @@ Item {
       activationMode: root.activationMode
       releaseArmed: root.modifierReleaseArmed
       editingWorkspaceName: root.renamingWorkspaceId > 0
-      // Pointer-driven focus changes must not strand a release-mode overlay.
-      // The inline name editor intentionally takes focus and is exempt.
-      onActiveFocusChanged: {
-        if (!activeFocus && root.opened && root.modifierReleaseArmed
-            && root.activationMode === WindowModel.ACTIVATION_RELEASE
-            && root.renamingWorkspaceId <= 0) root.cancel()
-      }
+      onActiveFocusChanged: root.noteLifecycle(activeFocus ? "focus-in" : "focus-out")
       onEscapePressed: {
         if (root.query) root.updateQuery("")
         else if (root.activeFilter.kind !== WindowModel.FILTER_ALL)
@@ -837,7 +887,10 @@ Item {
       onWorkspaceDigitPressed: function(workspaceId) { root.toggleWorkspaceFilter(workspaceId) }
       onCloseWindowRequested: root.closeSelectedWindow()
       onQueryEdited: function(nextQuery) { root.updateQuery(nextQuery) }
-      onModifierReleased: root.commitSelected()
+      onModifierReleased: {
+        root.noteLifecycle("modifier-released")
+        root.commitSelected()
+      }
 
       Rectangle {
         id: switcherCard

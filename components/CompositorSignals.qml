@@ -12,6 +12,7 @@ Item {
 
   signal refreshRequested()
   signal geometryRefreshRequested()
+  signal geometrySnapshotReceived()
   signal activeWindowChanged()
   signal workspaceFocusChanged(var workspaceId)
   signal screenLayoutChanged()
@@ -39,6 +40,18 @@ Item {
   Connections {
     target: Hyprland.toplevels
     function onValuesChanged() { compositor.refreshRequested() }
+  }
+
+  // In the installed Quickshell, each client snapshot updates its address
+  // signal even if its value is unchanged. Queue the notification until the
+  // whole reply is applied. The controller retains its settle-timer fallback
+  // for versions that do not emit this signal on an unchanged address.
+  Connections {
+    target: Hyprland.toplevels && Hyprland.toplevels.values.length > 0
+      ? Hyprland.toplevels.values[0] : null
+    function onAddressChanged() {
+      if (compositor.switcherOpen) Qt.callLater(function() { compositor.geometrySnapshotReceived() })
+    }
   }
 
   Connections {

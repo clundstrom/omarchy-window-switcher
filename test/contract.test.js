@@ -325,3 +325,13 @@ assert.match(switcher, /onQueryCleared: root\.updateQuery\(""\)/,
   'clearing the query goes through the one query path')
 
 console.log('ok - window switcher plugin contract')
+
+// Compact startup can bypass the fallback wait only after an observed snapshot.
+assert.match(switcher, /onGeometrySnapshotReceived:[\s\S]*?geometrySettle\.stop\(\)[\s\S]*?root\.rebuildWindows\(\)[\s\S]*?root\.beginCaptureRamp\(\)/)
+assert.match(switcher, /interval: root\.compactWorkspace \? 16 : 40/)
+assert.match(switcher, /name: "modifier-left"/)
+assert.match(switcher, /name: "modifier-right"/)
+assert.match(switcher, /if \(root\.modifierTrackingSeen\) root\.finishModifierRelease\(\)/,
+  'opening checks for a modifier that was released before the layer received focus')
+assert.match(switcher, /!leftWorkspaceModifier\.pressed && !rightWorkspaceModifier\.pressed/,
+  'native release waits until neither workspace modifier remains held')

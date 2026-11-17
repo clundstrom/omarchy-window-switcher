@@ -1,7 +1,7 @@
 # Compact workspace presentation
 
 The workspace view is a centered horizontal strip. The existing controller,
-MRU ordering, workspace/window enumeration, activation, key surface and native
+MRU ordering, workspace/window enumeration, activation targets, key surface and native
 ScreencopyView sources remain in use. Window and grouped views retain their
 original presentation.
 
@@ -15,7 +15,9 @@ baseline commit before this redesign. Do not replace them with an upstream copy.
 Presentation changes are confined to:
 
 - `Switcher.qml`: compact panel dimensions, centered placement, optional chrome,
-  context line, immediate appearance and a release-mode focus-loss safeguard.
+  context line, immediate appearance and compositor modifier tracking.
+- `CompositorSignals.qml`: observe the initial geometry reply to start compact
+  captures early, retaining the original settle timer as a compatibility fallback.
 - `WorkspaceGridView.qml`: one horizontal row using the existing selection reveal.
 - `SwitcherViewArea.qml`: compact sizing from existing logical monitor rectangles.
 - `WorkspaceCard.qml`: one-line metadata, optional details/controls, native preview
@@ -26,18 +28,35 @@ Presentation changes are confined to:
 
 The fullscreen transparent layer still owns keyboard focus and outside-click
 cancellation on the focused monitor. Only the small centered strip is painted;
-compact mode does not dim the rest of the desktop. Existing geometry settling,
-capture batching and source teardown are preserved. No frame-readiness delay is
-added to opening or keyboard handling. If keyboard focus is lost during a
-release-mode interaction, the overlay cancels; intentional inline name editing
-is exempt.
+compact mode does not dim the rest of the desktop. Capture limits, batching
+size and source teardown are preserved. Compact mode starts the first capture
+pass after the compositor client snapshot is applied and batches two sources
+per 16 ms rather than 40 ms. The original 160 ms geometry timer remains a
+fallback on Quickshell versions that do not re-emit the observed address signal.
+No frame-readiness delay is added to opening or keyboard handling. Compact
+closing no longer waits for the original 140 ms animation when no exit
+animation is drawn. Modifier release can close a release-mode interaction regardless of popup
+keyboard focus. Pointer movement does not cancel an interaction; intentional
+inline name editing is exempt from native release activation.
 
 ## Settings
 
 Edit `compact.json` in the installed plugin directory. These are presentation
 settings, separate from the existing invocation/controller options. This also
 works with Omarchy's scoped third-party API, which does not expose shellConfig.
-No Hyprland keybinding changes are necessary.
+Keep the existing Super+Tab invocation and Alt+Tab window bindings. To close a
+release-mode popup even when its modifier was released before keyboard focus
+arrived, append [modifier-release.lua](modifier-release.lua) once to the user
+Hyprland bindings. These two transparent, non-consuming global shortcut bindings
+track only Super_L/Super_R and spawn no processes. Then run:
+
+```bash
+hyprctl reload
+hyprctl configerrors
+```
+
+The ordinary in-popup release handling remains a fallback. The native tracker
+is needed to cover releases that happen before that popup receives focus.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -91,7 +110,12 @@ returning to zero after close. The user confirmed the normal workspace shortcut
 works. Before/after captures were inspected only in memory. Physical 5120×1440,
 mixed-scale multi-monitor behavior, unsupported capture and destroyed sources
 need additional hardware/session testing. The geometry/capture implementation
-and its existing safety checks were preserved.
+and its existing safety checks were preserved. A delayed-release race was
+identified in the existing in-popup-only release path; native modifier tracking
+was added. Repeated physical-key and pointer validation remains necessary.
+Memory-only, bounded lifecycle diagnostics are exposed by the existing status
+method to help diagnose intermittent focus/release issues; no keys or titles
+are added to those events and nothing is persisted.
 
 ## Fork and updates
 
@@ -120,7 +144,10 @@ on a personal branch or saved separately before applying updates.
 For a presentation-only rollback, set `enabled` to `false` in `compact.json`.
 For an exact restoration of the installed baseline, restore the complete
 pre-change plugin backup, preserving a copy of the current directory first,
-and run `omarchy restart shell`. No Hyprland bindings were changed.
+and run `omarchy restart shell`. Remove the two modifier-tracking bindings
+added from `modifier-release.lua`, then run `hyprctl reload` and
+`hyprctl configerrors`. Restore the original personal bindings backup only if
+there have been no unrelated changes since it was made.
 
 Some installed Quickshell versions retain compiled plugin components after a
 plugin rescan; a shell restart was necessary in this session to load edited QML.
