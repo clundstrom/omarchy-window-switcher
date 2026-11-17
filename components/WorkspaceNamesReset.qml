@@ -34,6 +34,7 @@ Rectangle {
   }
 
   Text {
+    textFormat: Text.PlainText
     id: label
 
     anchors.centerIn: parent
@@ -45,6 +46,7 @@ Rectangle {
   }
 
   Text {
+    textFormat: Text.PlainText
     id: confirmMeasure
 
     visible: false

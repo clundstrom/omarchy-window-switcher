@@ -280,6 +280,7 @@ CardFrame {
       }
 
       Text {
+        textFormat: Text.PlainText
         anchors.left: hoverIcon.right
         anchors.leftMargin: Style.spacing.md
         anchors.right: parent.right
@@ -329,6 +330,7 @@ CardFrame {
       border.color: Util.alpha(Color.accent, 0.55)
 
       Text {
+        textFormat: Text.PlainText
         id: numberChipLabel
 
         anchors.centerIn: parent
@@ -380,6 +382,7 @@ CardFrame {
       height: titleLabel.implicitHeight + contextLabel.implicitHeight + Style.spacing.xs
 
       Text {
+        textFormat: Text.PlainText
         id: titleLabel
 
         anchors {
@@ -446,6 +449,7 @@ CardFrame {
       }
 
       Text {
+        textFormat: Text.PlainText
         id: contextLabel
 
         anchors {

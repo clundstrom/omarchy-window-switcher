@@ -24,6 +24,7 @@ Row {
   }
 
   Text {
+    textFormat: Text.PlainText
     anchors.verticalCenter: parent.verticalCenter
     text: hint.modelData.label
     color: Util.alpha(Color.menu.text, 0.60)

@@ -19,6 +19,7 @@ Rectangle {
   border.color: Util.alpha(Color.accent, 0.55)
 
   Text {
+    textFormat: Text.PlainText
     id: badgeLabel
 
     anchors.centerIn: parent

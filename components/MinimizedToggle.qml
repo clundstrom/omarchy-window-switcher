@@ -31,6 +31,7 @@ Rectangle {
     spacing: Style.spacing.xs
 
     Text {
+      textFormat: Text.PlainText
       text: "Minimized"
       color: toggle.constrained
         ? Color.menu.selectedText
@@ -42,6 +43,7 @@ Rectangle {
     }
 
     Text {
+      textFormat: Text.PlainText
       text: "·"
       color: toggle.constrained
         ? Util.alpha(Color.menu.selectedText, 0.45)
@@ -52,6 +54,7 @@ Rectangle {
     }
 
     Text {
+      textFormat: Text.PlainText
       text: toggle.showMinimized ? "Shown" : "Hidden"
       color: toggle.constrained
         ? Util.alpha(Color.menu.selectedText, 0.78)

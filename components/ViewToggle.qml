@@ -32,6 +32,7 @@ Rectangle {
       color: windowsSegment.active ? Color.menu.selectedBackground : "transparent"
 
       Text {
+        textFormat: Text.PlainText
         id: windowsSegmentLabel
 
         anchors.centerIn: parent
@@ -66,6 +67,7 @@ Rectangle {
       color: workspacesSegment.active ? Color.menu.selectedBackground : "transparent"
 
       Text {
+        textFormat: Text.PlainText
         id: workspacesSegmentLabel
 
         anchors.centerIn: parent

@@ -20,6 +20,7 @@ Rectangle {
   border.color: Util.alpha(Color.foreground, 0.30)
 
   Text {
+    textFormat: Text.PlainText
     id: capLabel
 
     anchors.centerIn: parent

@@ -36,6 +36,7 @@ Rectangle {
   }
 
   Text {
+    textFormat: Text.PlainText
     id: glyph
 
     anchors.centerIn: parent

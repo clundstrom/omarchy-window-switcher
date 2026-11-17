@@ -137,6 +137,7 @@ Item {
     spacing: Style.spacing.md
 
     Text {
+      textFormat: Text.PlainText
       anchors.horizontalCenter: parent.horizontalCenter
       text: area.allWindowsCount === 0 ? "No windows are open"
         : (area.hiddenMinimizedCount > 0 ? "Minimized windows are hidden" : "No matching windows")
@@ -147,6 +148,7 @@ Item {
     }
 
     Text {
+      textFormat: Text.PlainText
       anchors.horizontalCenter: parent.horizontalCenter
       text: {
         if (area.hiddenMinimizedCount > 0) return "Use Ctrl+M or the Minimized control to show them"

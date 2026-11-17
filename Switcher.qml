@@ -173,6 +173,13 @@ Item {
           : WindowModel.previousWorkspaceKey(ordered, focusedWorkspaceId, openWorkspaceMruKeys)
         var initialGroup = groupIndexForKey(WindowModel.GROUP_SELECTION_PREFIX + workspaceKey)
         selectedIndex = initialGroup >= 0 ? initialGroup : 0
+        // A reverse opening starts before the current workspace in the frozen
+        // MRU list, rather than selecting the same previous workspace as Tab.
+        if (initialDirection < 0 && workspaceOrder === WindowModel.WORKSPACE_ORDER_RECENT) {
+          var currentGroup = workspaceGroupIndexForId(focusedWorkspaceId)
+          selectedIndex = Nav.moveSequential(currentGroup >= 0 ? currentGroup : 0,
+            -1, windowGroups.length)
+        }
       }
       else selectedIndex = Math.max(0, Math.min(previousIndex, windowGroups.length - 1))
       revealSelected()
@@ -653,6 +660,9 @@ Item {
       workspaceCount: windowGroups.length,
       workspaceKeys: windowGroups.map(function(group) { return group.key }),
       workspaceHistory: openWorkspaceMruKeys,
+      liveWorkspaceHistory: workspaceMruKeys,
+      focusedWorkspaceId: focusedWorkspaceId,
+      selectedWorkspaceId: selectedWindow ? selectedWindow.workspaceId : null,
       previewMode: previewMode,
       showMinimized: showMinimized,
       hiddenMinimizedCount: hiddenMinimizedCount,
@@ -893,7 +903,12 @@ Item {
             activeFilter: root.activeFilter
             allWindowsCount: root.allWindows.length
             hiddenMinimizedCount: root.hiddenMinimizedCount
-            onCardHovered: function(index) { root.selectIndex(index) }
+            // Mapping or reordering cards under a stationary mouse emits hover
+            // events too. Keyboard cycling must keep its MRU selection.
+            onCardHovered: function(index) {
+              if (root.activationMode !== WindowModel.ACTIVATION_RELEASE)
+                root.selectIndex(index)
+            }
             onCardActivated: function(index) {
               root.selectIndex(index)
               root.commitSelected()

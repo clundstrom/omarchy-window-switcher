@@ -32,6 +32,7 @@ Rectangle {
       color: recentSegment.active ? Color.menu.selectedBackground : "transparent"
 
       Text {
+        textFormat: Text.PlainText
         id: recentSegmentLabel
 
         anchors.centerIn: parent
@@ -66,6 +67,7 @@ Rectangle {
       color: numberSegment.active ? Color.menu.selectedBackground : "transparent"
 
       Text {
+        textFormat: Text.PlainText
         id: numberSegmentLabel
 
         anchors.centerIn: parent

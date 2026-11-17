@@ -186,6 +186,7 @@ CardFrame {
       height: rankLabel.implicitHeight
 
       Text {
+        textFormat: Text.PlainText
         id: rankLabel
 
         anchors.centerIn: parent
@@ -209,6 +210,7 @@ CardFrame {
       height: titleLabel.implicitHeight + contextLabel.implicitHeight + Style.spacing.xs
 
       Text {
+        textFormat: Text.PlainText
         id: titleLabel
 
         anchors {
@@ -226,6 +228,7 @@ CardFrame {
       }
 
       Text {
+        textFormat: Text.PlainText
         id: contextLabel
 
         anchors {

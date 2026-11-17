@@ -90,6 +90,7 @@ Rectangle {
     }
 
     Text {
+      textFormat: Text.PlainText
       visible: !pill.capped
       text: pill.modelData.label
       color: pill.labelColor
@@ -112,6 +113,7 @@ Rectangle {
       anchors.verticalCenter: parent.verticalCenter
 
       Text {
+        textFormat: Text.PlainText
         id: countLabel
 
         anchors.centerIn: parent

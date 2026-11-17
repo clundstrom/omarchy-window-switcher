@@ -66,6 +66,7 @@ ListView {
       height: groupHeading.implicitHeight
 
       Text {
+        textFormat: Text.PlainText
         id: groupHeading
 
         anchors.left: parent.left

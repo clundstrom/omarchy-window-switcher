@@ -50,6 +50,7 @@ ColumnLayout {
       spacing: Style.spacing.xs
 
       Text {
+        textFormat: Text.PlainText
         text: "Switch windows"
         color: Color.menu.text
         font.family: Style.font.family
@@ -85,6 +86,7 @@ ColumnLayout {
           }
 
           Text {
+            textFormat: Text.PlainText
             id: searchPrefix
 
             anchors.left: parent.left
@@ -96,6 +98,7 @@ ColumnLayout {
           }
 
           Text {
+            textFormat: Text.PlainText
             id: queryText
 
             anchors.left: searchPrefix.right
@@ -132,6 +135,7 @@ ColumnLayout {
           }
 
           Text {
+            textFormat: Text.PlainText
             anchors.left: caret.right
             anchors.leftMargin: Style.spacing.xs
             anchors.right: clearButton.left
@@ -155,6 +159,7 @@ ColumnLayout {
             height: Style.space(16)
 
             Text {
+              textFormat: Text.PlainText
               anchors.centerIn: parent
               text: "×"
               color: clearArea.containsMouse ? Color.menu.text : Util.alpha(Color.menu.text, 0.5)
@@ -216,6 +221,7 @@ ColumnLayout {
       }
 
       Text {
+        textFormat: Text.PlainText
         anchors.verticalCenter: parent.verticalCenter
         text: header.countText
         color: Util.alpha(Color.menu.text, 0.64)

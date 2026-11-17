@@ -64,6 +64,7 @@ RowLayout {
   }
 
   Text {
+    textFormat: Text.PlainText
     id: previewLabel
 
     Layout.alignment: Qt.AlignVCenter
