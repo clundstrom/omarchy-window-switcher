@@ -7,6 +7,10 @@ import "../model/WindowSwitcherModel.js" as WindowModel
 CardFrame {
   id: card
 
+  property var presentation: null
+  compactRadius: presentation ? Math.max(0, presentation.cornerRadius - presentation.previewInset) : 0
+  showSelectedControl: !compact || (presentation && presentation.showCloseButtons)
+
   required property var groupData
   required property var windows
   required property bool focusedWorkspace
@@ -88,7 +92,7 @@ CardFrame {
       right: parent.right
       bottom: metadata.top
     }
-    anchors.margins: card.contentInset
+    anchors.margins: card.compact ? card.presentation.previewInset : card.contentInset
     clip: true
 
     Rectangle {
@@ -137,6 +141,7 @@ CardFrame {
           readonly property var cell: index < card.layout.length ? card.layout[index] : null
           readonly property bool shown: cell !== null && cell.hidden !== true
           readonly property bool pointed: card.hoveredWindow === index
+            && (!card.compact || card.presentation.showDetails)
           // The capture budget counts windows, not cards: unselected cards
           // share the global first-N budget by flat window index, and the
           // selected card may capture at most that budget on its own. The
@@ -173,6 +178,13 @@ CardFrame {
             paintCursor: false
             constraintSize: Qt.size(Math.max(1, width), Math.max(1, height))
             visible: hasContent
+            opacity: hasContent ? 1 : 0
+            Behavior on opacity {
+              NumberAnimation {
+                duration: card.compact ? Style.duration(80) : 0
+                easing.type: Easing.OutCubic
+              }
+            }
           }
 
           Image {
@@ -183,7 +195,11 @@ CardFrame {
             fillMode: Image.PreserveAspectFit
             asynchronous: true
             smooth: true
-            visible: !miniCapture.hasContent
+            // Compact previews start as a quiet workspace canvas, never as
+            // a large app icon that abruptly swaps into a captured frame.
+            // Details / capture-disabled mode retain the icon fallback.
+            visible: !miniCapture.hasContent && (!card.compact
+              || card.presentation.showDetails || card.previewMode === WindowModel.PREVIEW_NONE)
             opacity: 0.75
           }
 
@@ -194,6 +210,7 @@ CardFrame {
             // capture, and stands down only where the miniature is too
             // small to carry it.
             visible: miniCapture.hasContent
+              && (!card.compact || card.presentation.showDetails)
               && miniWindow.width >= Style.space(46)
               && miniWindow.height >= Style.space(34)
             anchors.left: parent.left
@@ -262,6 +279,7 @@ CardFrame {
       anchors.bottom: parent.bottom
       height: Style.space(26)
       visible: card.hoveredRecord !== null && !card.renaming
+        && (!card.compact || card.presentation.showDetails)
       color: Util.alpha(Color.background, 0.92)
       z: 58
 
@@ -304,7 +322,8 @@ CardFrame {
       right: parent.right
       bottom: parent.bottom
     }
-    height: Style.space(68)
+    height: card.compact ? card.presentation.labelHeight
+      + (card.presentation.showDetails ? Style.space(30) : 0) : Style.space(68)
 
     MouseArea {
       anchors.fill: parent
@@ -316,6 +335,7 @@ CardFrame {
 
     Rectangle {
       id: numberChip
+      visible: !card.compact
 
       anchors.left: parent.left
       anchors.leftMargin: Style.spacing.lg
@@ -363,7 +383,7 @@ CardFrame {
         id: currentBadge
 
         anchors.centerIn: parent
-        visible: card.focusedWorkspace
+        visible: card.focusedWorkspace && !card.compact
         text: "Current"
         outlined: true
       }
@@ -373,13 +393,13 @@ CardFrame {
       id: labelBlock
 
       anchors {
-        left: numberChip.right
-        leftMargin: Style.spacing.lg
+        left: card.compact ? parent.left : numberChip.right
+        leftMargin: card.compact ? Style.space(12) : Style.spacing.lg
         right: currentSlot.left
         rightMargin: Style.spacing.lg
         verticalCenter: parent.verticalCenter
       }
-      height: titleLabel.implicitHeight + contextLabel.implicitHeight + Style.spacing.xs
+      height: titleLabel.implicitHeight + (contextLabel.visible ? contextLabel.implicitHeight + Style.spacing.xs : 0)
 
       Text {
         textFormat: Text.PlainText
@@ -451,6 +471,7 @@ CardFrame {
       Text {
         textFormat: Text.PlainText
         id: contextLabel
+        visible: !card.compact || card.presentation.showDetails
 
         anchors {
           top: titleLabel.bottom

@@ -7,6 +7,9 @@ import "../model/WindowSwitcherModel.js" as WindowModel
 GridView {
   id: view
 
+  property var presentation: null
+  property bool compact: false
+
   required property var windows
   required property var metrics
   required property int selectedIndex
@@ -34,13 +37,15 @@ GridView {
 
   clip: true
   cellWidth: metrics.cellWidth
-  cellHeight: metrics.cellHeight
-  topMargin: Math.max(0, Math.floor((height - rowCount * cellHeight) / 2))
+  cellHeight: compact ? height : metrics.cellHeight
+  flow: compact ? GridView.FlowTopToBottom : GridView.FlowLeftToRight
+  flickableDirection: compact ? Flickable.HorizontalFlick : Flickable.VerticalFlick
+  topMargin: compact ? 0 : Math.max(0, Math.floor((height - rowCount * cellHeight) / 2))
   currentIndex: selectedIndex
   boundsBehavior: Flickable.StopAtBounds
-  interactive: contentHeight > height
+  interactive: compact ? contentWidth > width : contentHeight > height
   highlightFollowsCurrentItem: false
-  cacheBuffer: height
+  cacheBuffer: compact ? cellWidth : height
 
   delegate: Item {
     id: workspaceCell
@@ -51,9 +56,11 @@ GridView {
     height: view.cellHeight
 
     WorkspaceCard {
+      presentation: view.presentation
+      compact: view.compact
       anchors.centerIn: parent
-      width: Math.max(1, Math.min(view.metrics.cardWidth, parent.width - Style.spacing.xxl))
-      height: Math.max(1, Math.min(view.metrics.cardHeight, parent.height - Style.spacing.xxl))
+      width: Math.max(1, Math.min(view.metrics.cardWidth, parent.width - (view.compact ? view.presentation.spacing : Style.spacing.xxl)))
+      height: Math.max(1, Math.min(view.metrics.cardHeight, parent.height - (view.compact ? 0 : Style.spacing.xxl)))
       groupData: workspaceCell.modelData
       windows: view.windows.slice(
         workspaceCell.modelData.startIndex,

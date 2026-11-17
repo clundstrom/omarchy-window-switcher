@@ -62,6 +62,10 @@ Item {
   property var openingOverrides: ({})
   property string appliedSettingsKey: ""
 
+  WorkspacePresentation { id: workspacePresentation }
+  readonly property bool compactWorkspace: workspacePresentation.enabled
+    && viewMode === WindowModel.VIEW_WORKSPACES
+
   // In workspace view the selection indexes windowGroups and the selected
   // window is that workspace's most recently used one.
   readonly property var selectedWindow: {
@@ -669,6 +673,10 @@ Item {
       minimizedCount: minimizedCount,
       maxInitialCaptures: maxInitialCaptures,
       activeCaptureLimit: activeCaptureLimit,
+      presentationReady: revealProgress === 1,
+      keyFocus: keySurface.activeFocus,
+      releaseArmed: modifierReleaseArmed,
+      activationMode: activationMode,
       targetScreen: targetScreen ? String(targetScreen.name || "") : ""
     })
   }
@@ -780,11 +788,11 @@ Item {
 
     Rectangle {
       anchors.fill: parent
-      color: Color.menu.scrim
+      color: root.compactWorkspace ? "transparent" : Color.menu.scrim
       opacity: root.revealProgress
 
       Behavior on opacity {
-        NumberAnimation { duration: root.animationMs; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: root.compactWorkspace ? 0 : Style.duration(root.animationMs); easing.type: Easing.OutCubic }
       }
     }
 
@@ -802,6 +810,13 @@ Item {
       activationMode: root.activationMode
       releaseArmed: root.modifierReleaseArmed
       editingWorkspaceName: root.renamingWorkspaceId > 0
+      // Pointer-driven focus changes must not strand a release-mode overlay.
+      // The inline name editor intentionally takes focus and is exempt.
+      onActiveFocusChanged: {
+        if (!activeFocus && root.opened && root.modifierReleaseArmed
+            && root.activationMode === WindowModel.ACTIVATION_RELEASE
+            && root.renamingWorkspaceId <= 0) root.cancel()
+      }
       onEscapePressed: {
         if (root.query) root.updateQuery("")
         else if (root.activeFilter.kind !== WindowModel.FILTER_ALL)
@@ -827,21 +842,35 @@ Item {
       Rectangle {
         id: switcherCard
 
-        width: Math.max(360, Math.min(parent.width - Style.space(40), parent.width * 0.88))
-        height: Math.max(300, Math.min(parent.height - Style.space(40), parent.height * 0.84))
+        width: root.compactWorkspace
+          ? Math.min(parent.width - Style.space(48),
+              Math.max(switcherHeader.visible ? Style.space(900) : 0,
+                Math.max(1, Math.min(workspacePresentation.maxVisible, root.windowGroups.length))
+                  * (workspacePresentation.thumbnailWidth + workspacePresentation.spacing)
+                  + workspacePresentation.padding * 2))
+          : Math.max(360, Math.min(parent.width - Style.space(40), parent.width * 0.88))
+        height: root.compactWorkspace
+          ? Math.min(parent.height - Style.space(48), viewArea.compactCardHeight
+              + workspacePresentation.padding * 2
+              + (compactContext.visible ? compactContext.implicitHeight + Style.spacing.panelGap : 0)
+              + (switcherHeader.visible ? switcherHeader.implicitHeight + Style.spacing.panelGap : 0)
+              + (footerHints.visible ? footerHints.implicitHeight + Style.spacing.panelGap : 0))
+          : Math.max(300, Math.min(parent.height - Style.space(40), parent.height * 0.84))
         anchors.centerIn: parent
-        color: Color.menu.background
-        radius: Style.cornerRadius
+        color: root.compactWorkspace
+          ? Util.alpha(Color.menu.background, Color.menu.background.a * workspacePresentation.backgroundOpacity)
+          : Color.menu.background
+        radius: root.compactWorkspace ? workspacePresentation.cornerRadius : Style.cornerRadius
         border.width: Math.max(1, Style.spacing.hairline)
-        border.color: Color.menu.border
+        border.color: root.compactWorkspace ? Util.alpha(Color.menu.border, 0.28) : Color.menu.border
         opacity: root.revealProgress
-        scale: 0.97 + 0.03 * root.revealProgress
+        scale: root.compactWorkspace ? 1 : 0.97 + 0.03 * root.revealProgress
 
         Behavior on opacity {
-          NumberAnimation { duration: root.animationMs; easing.type: Easing.OutCubic }
+          NumberAnimation { duration: root.compactWorkspace ? 0 : Style.duration(root.animationMs); easing.type: Easing.OutCubic }
         }
         Behavior on scale {
-          NumberAnimation { duration: root.animationMs; easing.type: Easing.OutCubic }
+          NumberAnimation { duration: root.compactWorkspace ? 0 : Style.duration(root.animationMs); easing.type: Easing.OutCubic }
         }
 
         MouseArea {
@@ -851,10 +880,12 @@ Item {
 
         ColumnLayout {
           anchors.fill: parent
-          anchors.margins: Style.spacing.panelPadding
+          anchors.margins: root.compactWorkspace ? workspacePresentation.padding : Style.spacing.panelPadding
           spacing: Style.spacing.panelGap
 
           SwitcherHeader {
+            id: switcherHeader
+            visible: !root.compactWorkspace || workspacePresentation.showHeader
             Layout.fillWidth: true
             pillRows: root.pillRows
             activeFilter: root.activeFilter
@@ -884,8 +915,23 @@ Item {
             onWorkspacesViewRequested: root.setViewMode(WindowModel.VIEW_WORKSPACES)
           }
 
+          Text {
+            id: compactContext
+            Layout.fillWidth: true
+            visible: root.compactWorkspace && !workspacePresentation.showHeader
+              && (root.query.length > 0 || root.activeFilter.kind !== WindowModel.FILTER_ALL)
+            textFormat: Text.PlainText
+            text: root.query ? "Search: " + root.query : WindowModel.filterLabel(root.activeFilter, root.allWindows)
+            color: Color.menu.text
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+            elide: Text.ElideRight
+          }
+
           SwitcherViewArea {
             id: viewArea
+            presentation: workspacePresentation
+            compact: root.compactWorkspace
 
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -927,6 +973,8 @@ Item {
           }
 
           FooterHints {
+            id: footerHints
+            visible: !root.compactWorkspace || workspacePresentation.showFooter
             Layout.fillWidth: true
             activationMode: root.activationMode
             previewMode: root.previewMode

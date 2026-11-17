@@ -188,7 +188,7 @@ assert.doesNotMatch(card, /Behavior on (?:color|scale)/,
   'window selection handoff is atomic instead of showing two selected cards')
 assert.match(cardFrame, /required property bool selected/,
   'the shared card frame owns selection state')
-assert.match(cardFrame, /opacity: selected \? 1 : 0\.7[\s\S]*?scale: selected \? 1\.04 : 1/,
+assert.match(cardFrame, /opacity: compact \? 1 : \(selected \? 1 : 0\.7\)[\s\S]*?scale: compact \? 1 : \(selected \? 1\.04 : 1\)/,
   'the shared frame owns the selected-card visual hierarchy')
 assert.match(card, /^CardFrame \{/m, 'window cards use the shared selection frame')
 assert.match(workspaceCard, /^CardFrame \{/m, 'workspace cards use the shared selection frame')
@@ -241,7 +241,7 @@ assert.match(workspaceCard, /selectedControl: CloseButton[\s\S]{0,400}?onCloseRe
   'a workspace card supplies its close-all action to the shared frame')
 assert.doesNotMatch(card + workspaceCard, /visible: card\.selected/,
   'card types do not duplicate selected-only control visibility')
-assert.match(cardFrame, /opacity: selected \? 1 : 0\.7/,
+assert.match(cardFrame, /opacity: compact \? 1 : \(selected \? 1 : 0\.7\)/,
   'the shared frame makes every unselected card recede consistently')
 assert.doesNotMatch(allQml, /Behavior on opacity[\s\S]{0,120}?selected/,
   'the selection dim is atomic, like every other selection signal')
@@ -277,7 +277,7 @@ assert.ok(Number(surfaceZ[1]) > Number(canvasZ[1]),
 assert.ok(Number(selectedControlZ[1]) > Number(surfaceZ[1]),
   'the shared selected control stays reachable above workspace miniatures')
 
-assert.match(workspaceCard, /visible: miniCapture\.hasContent\s*\n\s*&& miniWindow\.width >=/,
+assert.match(workspaceCard, /visible: miniCapture\.hasContent[\s\S]*?&& miniWindow\.width >=/,
   'a captured miniature still carries an identity chip, sized out only where it cannot fit')
 assert.doesNotMatch(workspaceCard, /id: iconStrip/,
   'per-miniature icons replace the card-level icon strip rather than doubling it')

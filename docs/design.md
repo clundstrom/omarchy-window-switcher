@@ -49,9 +49,15 @@ construct shell commands from window metadata or invocation payloads.
 If workspace geometry is not available, the workspace card uses an even tile
 layout. Minimized windows do not appear in a workspace preview.
 
-## Visual hierarchy
+## Compact workspace presentation
 
-The switcher shows many dense previews at the same time. These rules keep the
+The fork defaults workspace view to a compact horizontal strip. See
+[compact workspace presentation](compact-workspaces.md) for its component map,
+settings, runtime checks and limitations. MRU and preview geometry are unchanged.
+
+## Original card visual hierarchy
+
+The original window/grouped views show many dense previews at the same time. These rules keep the
 previews first and the controls second.
 
 - The close button rests in neutral chrome. It shows the urgent color only

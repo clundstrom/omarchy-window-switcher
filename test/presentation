@@ -1,0 +1,18 @@
+#!/bin/bash
+# Exercise the real workspace view offscreen; never capture or save images.
+set -euo pipefail
+PLUGIN_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+OMARCHY_SOURCE=${OMARCHY_PATH:-/usr/share/omarchy}
+test_dir=$(mktemp -d)
+trap 'rm -rf -- "$test_dir"' EXIT
+ln -s "$OMARCHY_SOURCE/shell/Commons" "$test_dir/Commons"
+ln -s "$PLUGIN_DIR" "$test_dir/plugin"
+cp "$PLUGIN_DIR/test/presentation.qml" "$test_dir/shell.qml"
+QT_QPA_PLATFORM=offscreen timeout 20s quickshell -p "$test_dir" > "$test_dir/result.log" 2>&1
+# The standalone host does not provide all shell singleton initialization;
+# visual validation must also be done in the live Omarchy shell.
+sed -n '/CHECK geometry/p; /FAIL:/p; /RESULT failures=/p' "$test_dir/result.log"
+if ! rg -q 'RESULT failures=0' "$test_dir/result.log"; then
+  cat "$test_dir/result.log" >&2
+  exit 1
+fi

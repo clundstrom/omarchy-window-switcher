@@ -8,6 +8,9 @@ import "../model/WindowSwitcherModel.js" as WindowModel
 Item {
   id: area
 
+  property var presentation: null
+  property bool compact: false
+
   required property var windows
   required property var groups
   required property string viewMode
@@ -39,7 +42,33 @@ Item {
     Style.spacing.xxl, Style.space(160), 1.6, Style.space(68)), Style.spacing.xxl)
   readonly property var groupMetrics: Metrics.flowMetrics(
     width, Style.spacing.xxl, Style.space(160), 1.6, Style.space(68))
-  readonly property var workspaceMetrics: Metrics.compactRows(Metrics.gridMetrics(
+  // Use logical monitor rectangles already present in the window records.
+  // A shared row height fits the tallest workspace; each canvas retains its
+  // own aspect ratio in WorkspaceCard, including mixed-monitor groups.
+  readonly property real compactAspect: {
+    var aspect = 0
+    for (var i = 0; i < windows.length; i++) {
+      var rect = windows[i] && windows[i].monitorRect
+      if (rect && rect.width > 0 && rect.height > 0) {
+        var candidate = rect.width / rect.height
+        aspect = aspect > 0 ? Math.min(aspect, candidate) : candidate
+      }
+    }
+    return aspect > 0 ? aspect : 16 / 9
+  }
+  readonly property real compactCardWidth: presentation
+    ? Math.max(1, Math.min(presentation.thumbnailWidth, width - presentation.spacing)) : 1
+  readonly property real compactCardHeight: presentation
+    ? (compactCardWidth - presentation.previewInset * 2) / compactAspect
+      + presentation.labelHeight + presentation.previewInset * 2
+      + (presentation.showDetails ? Style.space(30) : 0) : 1
+  readonly property var workspaceMetrics: compact ? ({
+    columns: Math.max(1, groups.length),
+    cellWidth: compactCardWidth + presentation.spacing,
+    cellHeight: compactCardHeight,
+    cardWidth: compactCardWidth,
+    cardHeight: compactCardHeight
+  }) : Metrics.compactRows(Metrics.gridMetrics(
     groups.length, width, height,
     Style.spacing.xxl, Style.space(240), 16 / 9, Style.space(68)), Style.spacing.xxl)
 
@@ -109,6 +138,8 @@ Item {
     active: area.viewMode === WindowModel.VIEW_WORKSPACES
 
     sourceComponent: WorkspaceGridView {
+      presentation: area.presentation
+      compact: area.compact
       model: area.groups
       windows: area.windows
       metrics: area.workspaceMetrics

@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "thumbnailWidth": 264,
+  "maxVisible": 5,
+  "spacing": 12,
+  "padding": 16,
+  "cornerRadius": 16,
+  "backgroundOpacity": 0.96,
+  "showHeader": false,
+  "showFooter": false,
+  "showDetails": false,
+  "showCloseButtons": false
+}

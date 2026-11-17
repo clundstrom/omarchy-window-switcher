@@ -91,6 +91,13 @@ two-click **Reset names** action that restores every default label. Local names
 are saved in this plugin's `shell.json` entry; they do not change Hyprland or
 another workspace widget.
 
+## Compact workspace presentation
+
+This fork adds a compact, theme-aware horizontal workspace strip while retaining
+upstream switching and native previews. See [visual settings, validation, updates
+and rollback](docs/compact-workspaces.md). Set `enabled` to false in `compact.json`
+to restore the original workspace grid.
+
 ## Configuration
 
 Configuration is part of the plugin entry in `~/.config/omarchy/shell.json`.
