@@ -289,7 +289,6 @@ Item {
   }
   CompositorSignals {
     switcherOpen: root.opened
-    windowMode: appearance.windowMode
     onRefreshRequested: modelRefresh.restart()
     onGeometryRefreshRequested: geometrySettle.restart()
     onGeometrySnapshotReceived: if (geometrySettle.running) root.geometryReady()

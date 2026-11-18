@@ -9,7 +9,6 @@ Item {
   id: compositor
 
   required property bool switcherOpen
-  property bool windowMode: false
 
   signal refreshRequested()
   signal geometryRefreshRequested()
@@ -24,7 +23,7 @@ Item {
   ]
   readonly property var refreshEventNames: geometryEventNames.concat([
     "activewindow", "activewindowv2"
-  ]).concat(windowMode ? ["windowtitle", "windowtitlev2"] : [])
+  ])
 
   visible: false
 
