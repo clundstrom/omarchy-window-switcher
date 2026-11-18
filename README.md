@@ -5,7 +5,7 @@ Omarchy. Hold Alt and press Tab to open a small strip of workspace previews
 in the centre of the focused monitor. Keep pressing Tab to move through them,
 then release Alt to switch to the highlighted workspace.
 
-This branch uses Rust for workspace history, ordering, selection and preview
+Workspace Switcher uses Rust for workspace history, ordering, selection and preview
 layout calculations. It keeps the existing Qt interface and window capture
 components. A small compiled module connects them, without running a separate
 background program.
@@ -33,10 +33,10 @@ Builds need Rust, Cargo, a C++ compiler and the Qt development tools supplied
 with Omarchy. If Rust is not installed, you can install it under your user
 account with `mise install rust@stable`.
 
-For a new installation of the Rust branch, run:
+For a new installation, run:
 
 ```bash
-git clone --branch rewrite/rust-core https://github.com/clundstrom/omarchy-window-switcher.git \
+git clone --branch main https://github.com/clundstrom/omarchy-window-switcher.git \
   ~/.config/omarchy/plugins/community.window-switcher
 ~/.config/omarchy/plugins/community.window-switcher/bin/build
 omarchy plugin enable community.window-switcher
@@ -94,8 +94,7 @@ loaded automatically.
 
 ## Updates and development
 
-The Rust implementation is developed on `rewrite/rust-core`. The working
-JavaScript implementation remains on `main`. After updating this branch, run
+The Rust implementation is maintained on `main`. After updating, run
 `./bin/build` in the plugin directory before restarting the shell. Rebuild after
 a Qt upgrade as well. Build files are kept outside the plugin directory in
 your user cache.

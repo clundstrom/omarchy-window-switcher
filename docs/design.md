@@ -223,7 +223,7 @@ for the supported modes.
 
 ## Updates
 
-The Rust implementation lives on `rewrite/rust-core`. Build it with `bin/build`
+The Rust implementation lives on `main`. Build it with `bin/build`
 before enabling it. Cargo downloads the locked build dependencies on the first
 build. Build artifacts stay in the user cache because Omarchy rejects symlinks
 inside plugin folders. The build generates a local module directory file that
@@ -234,16 +234,16 @@ Update an installed Rust checkout explicitly:
 
 ```bash
 git -C ~/.config/omarchy/plugins/community.window-switcher fetch origin
-git -C ~/.config/omarchy/plugins/community.window-switcher merge --ff-only origin/rewrite/rust-core
+git -C ~/.config/omarchy/plugins/community.window-switcher merge --ff-only origin/main
 ~/.config/omarchy/plugins/community.window-switcher/bin/build
 omarchy restart shell
 ```
 
 Preserve or commit local `compact.json` changes before updating. Omarchy's normal
 plugin updater does not compile Rust modules. Rebuild explicitly after source
-updates and Qt upgrades. The fork's default `main` branch retains the working
-JavaScript implementation during this experiment. The original upstream history is retained, and the redesign
-checkpoint remains on `redesign/compact-workspaces`. Incorporate upstream
+updates and Qt upgrades. The fork's default `main` branch contains the Rust
+implementation. The previous JavaScript version remains available at commit
+`4538d70`, and the earlier compact redesign is preserved at `5688690`. Incorporate upstream
 changes deliberately in the development checkout, validate, then push the
 reviewed branch. Avoid forced checkouts or hard resets over customizations.
 
@@ -253,18 +253,20 @@ directory survive ordinary configuration reloads.
 
 ## Rollback
 
-To return from the Rust branch to the working JavaScript version, switch the
-installed checkout to `main` and restart the shell. Both versions use the same
+To return to the working JavaScript version, switch the installed checkout to
+commit `4538d70` and restart the shell. Both versions use the same
 plugin identity and bindings. The generated native library is unused by the
 JavaScript version.
 
 ```bash
-git -C ~/.config/omarchy/plugins/community.window-switcher switch main
+git -C ~/.config/omarchy/plugins/community.window-switcher switch --detach 4538d70
 omarchy restart shell
 ```
 
-The last working redesign checkpoint is `5688690` on
-`redesign/compact-workspaces`. Back up the current plugin and personal bindings
+To return to the current Rust implementation, switch to `main`, run `bin/build`
+in the plugin directory and restart the shell.
+
+The earlier compact redesign checkpoint is `5688690`. Back up the current plugin and personal bindings
 before switching versions. To restore its code without overwriting uncommitted
 changes:
 
