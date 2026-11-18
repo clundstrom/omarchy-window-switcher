@@ -91,19 +91,20 @@ unconfirmed.
 
 ## Updates
 
-The focused implementation lives on `refactor/workspace-only`, the fork's default branch.
+The focused implementation lives on `main`, the fork's default branch.
 Keep the installed copy on that branch and update it explicitly:
 
 ```bash
 git -C ~/.config/omarchy/plugins/community.window-switcher fetch origin
-git -C ~/.config/omarchy/plugins/community.window-switcher merge --ff-only origin/refactor/workspace-only
+git -C ~/.config/omarchy/plugins/community.window-switcher switch main
+git -C ~/.config/omarchy/plugins/community.window-switcher merge --ff-only origin/main
 omarchy restart shell
 ```
 
 Preserve or commit local `compact.json` changes before updating. Omarchy's normal
 plugin updater fetches `origin HEAD`, which now follows the focused branch,
-and attempts a fast-forward. The original upstream main and the redesign
-checkpoint remain separate branches. Incorporate upstream
+and attempts a fast-forward. The original upstream history is retained, and the redesign
+checkpoint remains on `redesign/compact-workspaces`. Incorporate upstream
 changes deliberately in the development checkout, validate, then push the
 reviewed branch. Avoid forced checkouts or hard resets over customizations.
 

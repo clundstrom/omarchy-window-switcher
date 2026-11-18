@@ -4,7 +4,7 @@
   "name": "Workspace Switcher",
   "version": "2.0.0",
   "author": "Omarchy Window Switcher contributors",
-  "description": "Compact MRU workspace switching with native Wayland previews",
+  "description": "Switch between recently used workspaces with compact, themed previews",
   "license": "MIT",
   "kinds": [
     "overlay"
