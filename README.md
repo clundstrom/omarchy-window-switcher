@@ -8,6 +8,8 @@ The strip follows the focused monitor, preserves preview aspect ratios, scrolls
 to the selected card, and uses the current Omarchy theme. The supplied layer
 rule disables the compositor fade; previews have no QML fade either.
 
+![Workspace Switcher showing four workspace previews in a compact horizontal strip, with Workspace 1 selected](docs/images/workspace-switcher.png)
+
 ## Install
 
 Requires Omarchy's schema-version-1 plugin host, Quickshell with native
@@ -49,6 +51,10 @@ For an Alt/Super-swapped setup, use `SUPER` in both cycling bindings and
 
 The order stays fixed while the switcher is open. Pointer movement does not
 change the keyboard selection. Only occupied regular workspaces are listed.
+
+For example, hold **Alt** and tap **Tab** to preview your previous workspace.
+Keep holding Alt and tap Tab again to cycle, or Shift+Tab to go back.
+Release Alt when the workspace you want is highlighted.
 
 ## Appearance
 
