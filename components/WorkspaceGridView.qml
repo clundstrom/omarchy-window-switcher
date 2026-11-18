@@ -1,6 +1,6 @@
 import QtQuick
 
-// A single scrolling row. Captures are scheduled only for visible cards,
+// A scrolling row or stationary wrapped rows. Capture visible cards,
 // selected workspace first, within one shared bounded capture budget.
 GridView {
   id: view
@@ -12,14 +12,15 @@ GridView {
   required property bool switcherOpen
   required property int captureLimit
   signal frameReady()
+  readonly property bool wrapped: presentation.wrapOverflow
 
   clip: true
   cellWidth: metrics.cellWidth
-  cellHeight: height
-  flow: GridView.FlowTopToBottom
+  cellHeight: metrics.cellHeight
+  flow: wrapped ? GridView.FlowLeftToRight : GridView.FlowTopToBottom
   flickableDirection: Flickable.HorizontalFlick
   boundsBehavior: Flickable.StopAtBounds
-  interactive: contentWidth > width
+  interactive: !wrapped && contentWidth > width
   highlightFollowsCurrentItem: false
   cacheBuffer: cellWidth
   model: workspaceGroups
@@ -29,18 +30,32 @@ GridView {
     forceLayout()
     var entries = workspaceGroups || []
     if (selectedIndex >= entries.length) return
+    contentY = originY
+    if (wrapped) { contentX = originX; return }
     // Keep complete cards between the clipped neighbours, with selection near
     // the centre. Clamp at either end to keep the first/last card complete.
     var complete = Math.max(1, Math.floor(width / cellWidth))
     var first = selectedIndex - Math.floor(complete / 2)
     var next = first * cellWidth - (width - complete * cellWidth) / 2
-    contentX = Math.max(0, Math.min(next, Math.max(0, entries.length * cellWidth - width)))
+    contentX = originX + Math.max(0, Math.min(next, Math.max(0, entries.length * cellWidth - width)))
   }
   onSelectedIndexChanged: Qt.callLater(view.revealSelection)
   onWorkspaceGroupsChanged: Qt.callLater(view.revealSelection)
   onWidthChanged: Qt.callLater(view.revealSelection)
   onCellWidthChanged: Qt.callLater(view.revealSelection)
+  onCellHeightChanged: Qt.callLater(view.revealSelection)
+  onWrappedChanged: Qt.callLater(view.revealSelection)
+  onOriginXChanged: Qt.callLater(view.revealSelection)
+  onOriginYChanged: Qt.callLater(view.revealSelection)
   onSwitcherOpenChanged: if (switcherOpen) Qt.callLater(view.revealSelection)
+
+  function inViewport(index) {
+    var columns = wrapped ? Math.max(1, metrics.columns) : 1
+    var x = originX + (wrapped ? index % columns : index) * cellWidth
+    var y = originY + (wrapped ? Math.floor(index / columns) * cellHeight : 0)
+    return x + cellWidth > contentX && x < contentX + width
+      && y + cellHeight > contentY && y < contentY + height
+  }
 
   readonly property var captureOffsets: {
     var offsets = []
@@ -50,13 +65,12 @@ GridView {
     var total = entries.length
     var next = 0
     for (var i = 0; i < total; i++) offsets.push(-1)
-    // In this one-row grid, cells map directly to horizontal positions.
     if (selectedIndex >= 0 && selectedIndex < total && entries[selectedIndex]) {
       offsets[selectedIndex] = 0
       next = entries[selectedIndex].size
     }
     for (var j = 0; j < total; j++) {
-      if (!entries[j] || j === selectedIndex || (j + 1) * cellWidth <= contentX || j * cellWidth >= contentX + width) continue
+      if (!entries[j] || j === selectedIndex || !view.inViewport(j)) continue
       offsets[j] = next
       next += entries[j].size
     }
@@ -69,8 +83,7 @@ GridView {
     required property var modelData
     width: view.cellWidth
     height: view.cellHeight
-    readonly property bool inViewport: (index + 1) * view.cellWidth > view.contentX
-      && index * view.cellWidth < view.contentX + view.width
+    readonly property bool inViewport: view.inViewport(index)
     WorkspaceCard {
       anchors.centerIn: parent
       width: view.metrics.cardWidth

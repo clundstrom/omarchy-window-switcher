@@ -47,7 +47,17 @@ cannot make the preview taller than a smaller monitor. Scrolling follows the
 selection using the plain workspace array and cell dimensions. It does not
 query Qt's native model getter during position updates.
 
-Overflow reserves roughly a fifth of a preview beyond the complete cards. The
+`overflowMode` selects `wrap` or `scroll`. The shipped settings use `wrap`, while
+an omitted or invalid value preserves `scroll` for existing configurations.
+Wrapped previews fill a row and continue below, using further rows if needed.
+Selection never scrolls the grid or changes any preview's position. The layout
+first keeps the configured preview size and the number of columns that fit.
+If the rows exceed the monitor height, it considers more columns and smaller
+previews to keep the grid visible. `maxVisible` limits columns. Capture scheduling
+uses both coordinates and keeps the selected workspace first within the same
+20-source budget. Wrapping disables dragging; it adds no mouse activation.
+
+Scrolling overflow reserves roughly a fifth of a preview beyond the complete cards. The
 half-gap is included in that allowance so image content, rather than empty
 spacing, appears at the edge. When both ends have hidden workspaces, the extra
 space is split between them. Selection stays among the complete cards near the
@@ -138,11 +148,15 @@ capture sources. Capture scheduling reads a plain input array rather than
 `GridView.model`: reading Qt's model getter from a content-position binding
 during model replacement caused a reproducible native crash in the test.
 
-The presentation passes twelve offscreen layout cases, including 5120×1440,
+The presentation passes thirty offscreen layout cases across both modes, including 5120×1440,
 ordinary 16:9 sizes, five versus six workspaces, overflow, a one-card setting and
 maximum-width previews on a 960×540 display. Each case checks the first, middle
 and last selection, complete selected previews, visible slices in directions
-with hidden workspaces and constant row width during navigation.
+with hidden workspaces in scrolling mode, and constant layout dimensions during
+navigation. Wrapped cases also verify every preview is visible and its position
+does not change with selection. The tests cover live resizing and model changes
+where Qt can retain a non-zero content origin; scrolling and capture visibility
+account for that offset.
 Input tests cover forward/reverse cycling, the opacity chord, excluded
 Backspace combinations and secondary-modifier release handling. These automated
 checks do not establish compositor capture or physical shortcut behaviour.
@@ -165,6 +179,13 @@ previews and a slice of the sixth were visible at the start, with the slice on
 the opposite edge at the end. Forward/reverse wrapping, fixed opening order,
 live resizing, opacity toggling and capture/inhibition cleanup passed live
 checks. The preview slices reuse the existing native capture components.
+
+Both overflow modes were then inspected in the live desktop with three occupied
+workspaces and a temporary two-column limit. The wrapped view showed a complete
+second row and the scrolling view showed the partial neighbouring preview.
+Forward/reverse wrapping, frozen order, opacity and capture/inhibitor cleanup
+passed in both modes. The temporary limit was restored to five afterwards,
+with 800-pixel previews and wrapped overflow enabled in the installed settings.
 
 The scoped gesture guard was checked in the live session: inhibition became
 active with popup focus, Tab cycled selection, and closing released inhibition
@@ -326,6 +347,8 @@ retain compiled components after a plugin rescan. Files in the user plugin
 directory survive ordinary configuration reloads.
 
 ## Rollback
+
+Commit `516bab9` preserves the larger previews before wrapped overflow was added.
 
 The flat presentation before overflow cues is preserved at commit `86609ae`.
 

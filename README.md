@@ -28,10 +28,11 @@ edge. Previews keep the screen's proportions and use colours from your Omarchy
 theme. They are captured when needed rather than streamed in the background.
 The current Omarchy wallpaper fills the spaces between windows when available.
 
-The strip adapts to the monitor's size and scrolls to keep the selected
-workspace in view. When more workspaces are available, a slice of the next
-preview remains visible at the edge. The row keeps the same width as you cycle,
-and the selected preview stays complete. It opens without a fade animation.
+The layout adapts to the monitor's size. By default, extra previews continue
+below on another row. They stay in place as you cycle, with only the selection
+border and dot changing. A scrolling layout is also available, with a slice of
+the next preview at the edge to show that more workspaces are available.
+It opens without a fade animation.
 Only regular workspaces containing windows that are not minimised appear.
 Their order stays fixed until you finish switching.
 
@@ -95,6 +96,7 @@ settings are:
 {
   "thumbnailWidth": 800,
   "maxVisible": 5,
+  "overflowMode": "wrap",
   "spacing": 28,
   "padding": 24,
   "cornerRadius": 0,
@@ -106,9 +108,14 @@ settings are:
 `thumbnailWidth` sets the preview width from 160 to 960 logical pixels before
 the shell's interface scaling. Height follows the monitor's proportions.
 Previews shrink when necessary to fit the available screen width or height.
-`maxVisible` limits how many complete previews fit in the row at once. An
-additional partial preview indicates overflow. Smaller screens show fewer
-complete previews while retaining that cue. `spacing` controls the gap between
+`overflowMode` chooses how extra workspaces appear. Use `"wrap"` for stationary
+previews that continue onto a second row, and further rows when needed. The
+layout reduces preview size if the rows would otherwise exceed the screen.
+Use `"scroll"` for the horizontal row with partial neighbouring previews.
+An omitted or unrecognised value keeps the scrolling behaviour for compatibility.
+
+`maxVisible` limits the number of complete previews per row. Smaller screens
+fit fewer, or reduce preview size in wrapping mode. `spacing` controls the gap between
 cards, `padding` controls the space around them, and `cornerRadius` sets how rounded
 the preview borders are. `backgroundOpacity` controls how opaque the desktop
 backdrop is, combined with the current theme's transparency. `showWallpaper`

@@ -9,6 +9,7 @@ QtObject {
   property var settings: ({})
   readonly property int thumbnailWidth: Commons.Style.space(number("thumbnailWidth", 800, 160, 960))
   readonly property int maxVisible: number("maxVisible", 5, 1, 8)
+  readonly property bool wrapOverflow: settings.overflowMode === "wrap"
   readonly property int spacing: Commons.Style.space(number("spacing", 28, 4, 64))
   readonly property int padding: Commons.Style.space(number("padding", 24, 8, 48))
   readonly property int cornerRadius: Commons.Style.space(number("cornerRadius", 0, 0, 32))
@@ -69,6 +70,34 @@ QtObject {
     visible = Math.max(1, Math.min(visible, Math.floor((availableWidth - peek) / metrics.cellWidth)))
     metrics.viewportWidth = Math.min(availableWidth, visible * metrics.cellWidth + peek)
     return metrics
+  }
+
+  function layoutMetricsFor(availableWidth, windows, availableHeight, workspaceCount) {
+    if (!wrapOverflow) {
+      var row = rowMetricsFor(availableWidth, windows, availableHeight, workspaceCount)
+      row.viewportHeight = row.cardHeight
+      return row
+    }
+    var preferred = metricsFor(availableWidth, windows, availableHeight)
+    var limit = Math.max(1, Math.min(maxVisible, workspaceCount))
+    var columns = Math.max(1, Math.min(limit, Math.floor(availableWidth / preferred.cellWidth)))
+    var rows = Math.max(1, Math.ceil(workspaceCount / columns))
+    var gap = rows > 1 ? spacing : 0
+    var best = null
+    // Preserve the preferred size when it fits. Add columns and reduce size
+    // only when the wrapped rows would exceed the monitor's logical height.
+    for (var count = columns; count <= limit; count++) {
+      rows = Math.max(1, Math.ceil(workspaceCount / count))
+      gap = rows > 1 ? spacing : 0
+      var candidate = metricsFor(availableWidth / count, windows, availableHeight / rows - gap)
+      candidate.columns = count
+      candidate.cellHeight = candidate.cardHeight + gap
+      candidate.viewportWidth = count * candidate.cellWidth
+      candidate.viewportHeight = rows * candidate.cellHeight
+      if (!best || candidate.cardWidth > best.cardWidth) best = candidate
+      if (count === columns && candidate.cardWidth >= preferred.cardWidth - 0.5) break
+    }
+    return best
   }
 
   // This is the existing wallpaper file, decoded once in memory. FileView

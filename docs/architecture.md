@@ -124,7 +124,7 @@ records and capture delegates used by the open overlay are cleared.
 | [`CompositorSignals.qml`](../components/CompositorSignals.qml) | Window, workspace and monitor notifications, including the geometry-reply notification. |
 | [`WindowRecords.qml`](../components/WindowRecords.qml) | Associates native window handles with metadata and stable source tokens. |
 | [`SwitcherKeySurface.qml`](../components/SwitcherKeySurface.qml) | Cycling, modifier release and the opacity shortcut inside the overlay. |
-| [`WorkspaceGridView.qml`](../components/WorkspaceGridView.qml) | Horizontal layout, scrolling, selection visibility and capture priority. |
+| [`WorkspaceGridView.qml`](../components/WorkspaceGridView.qml) | Scrolling or stationary wrapped layout, selection visibility and capture priority. |
 | [`WorkspaceCard.qml`](../components/WorkspaceCard.qml) | Composes wallpaper and native window images at Rust-calculated positions, with a workspace number and selection marker. |
 | [`WorkspacePresentation.qml`](../components/WorkspacePresentation.qml) and [`compact.json`](../compact.json) | Bounded appearance settings, display proportions, wallpaper preloading and file watching. |
 | [`WorkspaceCore.qml`](../native/WorkspaceCore.qml) and [`coreplugin.cpp`](../native/coreplugin.cpp) | Expose the compiled core as a Qt object. CXX generates the bridge between C++ and Rust. |

@@ -222,6 +222,7 @@ Item {
       captureLimit: captureLimit, captureBudget: captureBudget, openWorkMs: openWorkMs, firstFrameMs: firstFrameMs,
       keyFocus: keySurface.activeFocus, releaseArmed: releaseArmed, releaseActivation: releaseActivation,
       shortcutsInhibited: gestureGuard.active, backgroundOpaque: opaqueBackground,
+      overflowMode: appearance.wrapOverflow ? "wrap" : "scroll",
       previewWidth: appearance.thumbnailWidth, wallpaperReady: appearance.wallpaperPreload.status === Image.Ready,
       modifierTrackingSeen: modifierTrackingSeen, globalModifierHeld: leftModifier.pressed || rightModifier.pressed,
       lifecycleEvents: lifecycleEvents })
@@ -351,11 +352,11 @@ Item {
       Rectangle {
         id: strip
         anchors.centerIn: parent
-        readonly property var rowMetrics: appearance.rowMetricsFor(
+        readonly property var rowMetrics: appearance.layoutMetricsFor(
           parent.width - Commons.Style.space(48) - appearance.padding * 2, root.windows,
           parent.height - Commons.Style.space(48) - appearance.padding * 2, root.groups.length)
         width: rowMetrics.viewportWidth + appearance.padding * 2
-        height: workspaceView.metrics.cardHeight + appearance.padding * 2
+        height: rowMetrics.viewportHeight + appearance.padding * 2
         radius: appearance.cornerRadius
         color: "transparent"
         WorkspaceGridView {

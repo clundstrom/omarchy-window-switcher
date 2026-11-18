@@ -1,6 +1,7 @@
 {
   "thumbnailWidth": 800,
   "maxVisible": 5,
+  "overflowMode": "wrap",
   "spacing": 28,
   "padding": 24,
   "cornerRadius": 0,
