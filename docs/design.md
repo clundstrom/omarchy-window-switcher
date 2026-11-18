@@ -125,6 +125,40 @@ shortcut-inhibitor cleanup passed live checks. Code checks and all seven
 offscreen layout cases passed. Larger window counts, other monitors and
 different workloads still need separate measurements.
 
+### Native renderer startup
+
+A follow-up trace identified the scheduling gap. Window data arrived at about
+2 ms, then Qt's interface thread entered its first frame synchronisation and
+blocked for about 25 ms. The deferred geometry callback ran immediately after
+that block. The renderer log placed about 22 ms inside creation of the new
+OpenGL graphics renderer, with a few more milliseconds preparing its first
+frame. Later openings showed the same pattern, rather than just a one-time
+startup cost.
+
+The installed Quickshell 0.3.2 build deletes the native layer window when it
+is hidden. Opening it again creates a new window and render thread. This is a
+deliberate workaround for a Qt/Wayland configuration error, documented in
+[Quickshell's layer-window implementation](https://github.com/quickshell-mirror/quickshell/blob/2b4501a282689792b62e94f3fb30d8f512324fe6/src/wayland/wlr_layershell/wlr_layershell.cpp#L99-L106).
+[Its base window implementation](https://github.com/quickshell-mirror/quickshell/blob/2b4501a282689792b62e94f3fb30d8f512324fe6/src/window/proxywindow.cpp#L270-L293)
+performs that deletion. Qt's threaded renderer blocks the interface thread
+until first-frame synchronisation completes.
+
+Small native tests reproduced the cost without loading the plugin. Creating
+Qt's OpenGL renderer on each of ten fresh worker threads took about 20–24 ms.
+Creating ten renderers on one worker thread took about 20 ms for the first
+and 0.4–0.5 ms for the rest. A separate context test and timing wrapper located
+most of the fresh-thread cost inside `eglMakeCurrent`, called internally while
+Qt creates the OpenGL context. Its first use on a new worker thread took about
+19–24 ms after the initial process startup. This establishes the expensive call
+and its connection to fresh threads, rather than a particular internal driver
+routine.
+
+The remaining delay is therefore mainly repeated native graphics startup.
+Moving the workspace calculations to another language would leave that path
+in place. A lasting improvement would need to preserve or reuse rendering
+resources in Qt or Quickshell while retaining correct Wayland surface handling.
+The plugin continues to unmap its window and release preview sources on close.
+
 ## Updates
 
 The focused implementation lives on `main`, the fork's default branch.
