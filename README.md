@@ -92,6 +92,13 @@ the available screen space. `backgroundOpacity` controls how opaque the panel
 is, combined with the current theme's transparency. Changes to this file are
 loaded automatically.
 
+## Architecture
+
+The plugin runs inside Omarchy's existing Quickshell process. Rust calculates
+workspace ordering and preview geometry, while native Quickshell components
+capture window images and Qt Quick draws the overlay. See the
+[architecture diagram and module guide](docs/architecture.md) for the complete flow.
+
 ## Updates and development
 
 The Rust implementation is maintained on `main`. After updating, run
