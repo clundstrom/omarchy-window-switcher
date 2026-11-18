@@ -159,6 +159,23 @@ in place. A lasting improvement would need to preserve or reuse rendering
 resources in Qt or Quickshell while retaining correct Wayland surface handling.
 The plugin continues to unmap its window and release preview sources on close.
 
+Qt also provides a supported single-threaded render loop, selected by starting
+the shell with `QSG_RENDER_LOOP=basic`. A temporary live comparison used the
+unchanged plugin for 20 openings, with three tracked windows and two regular
+workspaces displayed. Median first-preview arrival was 9.5 ms, the 95th
+percentile was 11 ms, and the observed range was 8–22 ms. The deferred geometry
+callback ran at a median of 5 ms. These are preview-content arrival timings,
+not complete shortcut-to-display latency.
+
+This mode renders on the interface thread rather than creating a dedicated
+render thread for each window. It applies to the entire shell, including the
+bar, menus and lock screen. The timing test does not establish responsiveness
+under other shell workloads. The default render loop was restored after the
+comparison, and all temporary probes and logging overrides were unloaded.
+No persistent render-loop setting was added. See
+[Qt's render-loop documentation](https://doc.qt.io/qt-6/qtquick-visualcanvas-scenegraph.html#scene-graph-and-rendering)
+for the supported modes.
+
 ## Updates
 
 The focused implementation lives on `main`, the fork's default branch.
