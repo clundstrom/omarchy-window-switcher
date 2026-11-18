@@ -1,4 +1,4 @@
 /rust/target/
 /native/lib*.so
-/native/qmldir
+/native/WorkspaceSwitcherCore/qmldir
 **/.qmlls.ini

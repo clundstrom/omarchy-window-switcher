@@ -3,7 +3,7 @@ Module {
     Component {
         name: "WorkspaceCore"
         prototype: "QObject"
-        exports: ["WorkspaceSwitcher.Native/WorkspaceCore 1.0"]
+        exports: ["WorkspaceSwitcherCore/WorkspaceCore 1.0"]
         exportMetaObjectRevisions: [0]
         Method {
             name: "evaluate"

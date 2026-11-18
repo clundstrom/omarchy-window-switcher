@@ -1,2 +1,3 @@
+module WorkspaceSwitcherCore
 plugin workspace_switcher_native @PLUGIN_DIRECTORY@
 typeinfo plugin.qmltypes

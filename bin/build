@@ -13,6 +13,6 @@ import sys
 root = Path(sys.argv[1])
 # Quickshell embeds relative QML imports as resources. Native libraries need
 # a filesystem location, generated for this checkout rather than a global path.
-template = (root / 'native/qmldir.in').read_text()
-(root / 'native/qmldir').write_text(template.replace('@PLUGIN_DIRECTORY@', str(root / 'native')))
+template = (root / 'native/WorkspaceSwitcherCore/qmldir.in').read_text()
+(root / 'native/WorkspaceSwitcherCore/qmldir').write_text(template.replace('@PLUGIN_DIRECTORY@', str(root / 'native')))
 PYMODULE
