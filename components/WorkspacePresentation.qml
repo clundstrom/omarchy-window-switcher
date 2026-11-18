@@ -7,7 +7,7 @@ QtObject {
   id: presentation
 
   property var settings: ({})
-  readonly property int thumbnailWidth: Commons.Style.space(number("thumbnailWidth", 400, 160, 960))
+  readonly property int thumbnailWidth: Commons.Style.space(number("thumbnailWidth", 800, 160, 960))
   readonly property int maxVisible: number("maxVisible", 5, 1, 8)
   readonly property int spacing: Commons.Style.space(number("spacing", 28, 4, 64))
   readonly property int padding: Commons.Style.space(number("padding", 24, 8, 48))

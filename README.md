@@ -93,7 +93,7 @@ settings are:
 
 ```json
 {
-  "thumbnailWidth": 400,
+  "thumbnailWidth": 800,
   "maxVisible": 5,
   "spacing": 28,
   "padding": 24,
