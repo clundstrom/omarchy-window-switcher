@@ -47,10 +47,6 @@ The supplied bindings replace Omarchy's Alt+Tab window navigation with workspace
 switching. The installed name remains `community.window-switcher` so existing
 installations can use this fork without changing their plugin settings.
 
-If you have swapped Alt and Super, use `SUPER` in both cycling bindings and
-`Super_L` and `Super_R` in the modifier trackers. These names refer to the keys
-after your keyboard remapping has been applied.
-
 ## Using the switcher
 
 Hold Alt and tap Tab to highlight your previous workspace. Keep holding Alt
