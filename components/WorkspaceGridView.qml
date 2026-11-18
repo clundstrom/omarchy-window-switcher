@@ -1,94 +1,72 @@
 import QtQuick
-import qs.Commons
-import "../model/WindowSwitcherModel.js" as WindowModel
 
-// One composite card per workspace; the model is the group list and
-// `windows` is the flat workspace-ordered record list the groups index into.
+// A single scrolling row. Captures are scheduled only for visible cards,
+// selected workspace first, within one shared bounded capture budget.
 GridView {
   id: view
-
-  property var presentation: null
-  property bool compact: false
-
   required property var windows
+  required property var workspaceGroups
   required property var metrics
+  required property var presentation
   required property int selectedIndex
-  required property int focusedWorkspaceId
   required property bool switcherOpen
-  required property string previewMode
   required property int captureLimit
-  required property var workspaceNames
-  required property int animationMs
-  required property int renamingWorkspaceId
-
-  signal cardHovered(int index)
   signal cardActivated(int index)
-  signal cardCloseAllRequested(int index)
-  // Miniature signals carry a flat window index, so the owner activates or
-  // closes exactly the window that was clicked rather than a card.
-  signal cardWindowActivated(int windowIndex)
-  signal cardWindowCloseRequested(int windowIndex)
-  signal cardRenameRequested(int index)
-  signal cardRenameCommitted(int workspaceId, string name)
-  signal cardRenameCancelled()
-
-  // Rows hug their cards; the whole block centers vertically when it fits.
-  readonly property int rowCount: Math.ceil(Math.max(0, count) / Math.max(1, metrics.columns))
+  signal frameReady()
 
   clip: true
   cellWidth: metrics.cellWidth
-  cellHeight: compact ? height : metrics.cellHeight
-  flow: compact ? GridView.FlowTopToBottom : GridView.FlowLeftToRight
-  flickableDirection: compact ? Flickable.HorizontalFlick : Flickable.VerticalFlick
-  topMargin: compact ? 0 : Math.max(0, Math.floor((height - rowCount * cellHeight) / 2))
-  currentIndex: selectedIndex
+  cellHeight: height
+  flow: GridView.FlowTopToBottom
+  flickableDirection: Flickable.HorizontalFlick
   boundsBehavior: Flickable.StopAtBounds
-  interactive: compact ? contentWidth > width : contentHeight > height
+  interactive: contentWidth > width
   highlightFollowsCurrentItem: false
-  cacheBuffer: compact ? cellWidth : height
+  cacheBuffer: cellWidth
+  model: workspaceGroups
+
+  readonly property var captureOffsets: {
+    var offsets = []
+    // Reading GridView.model during Qt's model replacement can re-enter its
+    // delegate-model getter. Schedule from the plain input array instead.
+    var entries = workspaceGroups || []
+    var total = entries.length
+    var next = 0
+    for (var i = 0; i < total; i++) offsets.push(-1)
+    // In this one-row grid, cells map directly to horizontal positions.
+    if (selectedIndex >= 0 && selectedIndex < total && entries[selectedIndex]) {
+      offsets[selectedIndex] = 0
+      next = entries[selectedIndex].size
+    }
+    for (var j = 0; j < total; j++) {
+      if (!entries[j] || j === selectedIndex || (j + 1) * cellWidth <= contentX || j * cellWidth >= contentX + width) continue
+      offsets[j] = next
+      next += entries[j].size
+    }
+    return offsets
+  }
 
   delegate: Item {
     id: workspaceCell
-
     required property int index
     required property var modelData
     width: view.cellWidth
     height: view.cellHeight
-
+    readonly property bool inViewport: (index + 1) * view.cellWidth > view.contentX
+      && index * view.cellWidth < view.contentX + view.width
     WorkspaceCard {
-      presentation: view.presentation
-      compact: view.compact
       anchors.centerIn: parent
-      width: Math.max(1, Math.min(view.metrics.cardWidth, parent.width - (view.compact ? view.presentation.spacing : Style.spacing.xxl)))
-      height: Math.max(1, Math.min(view.metrics.cardHeight, parent.height - (view.compact ? 0 : Style.spacing.xxl)))
+      width: view.metrics.cardWidth
+      height: Math.min(view.metrics.cardHeight, parent.height)
       groupData: workspaceCell.modelData
-      windows: view.windows.slice(
-        workspaceCell.modelData.startIndex,
-        workspaceCell.modelData.startIndex + workspaceCell.modelData.size)
+      windows: view.windows.slice(workspaceCell.modelData.startIndex, workspaceCell.modelData.startIndex + workspaceCell.modelData.size)
+      presentation: view.presentation
       selected: workspaceCell.index === view.selectedIndex
-      focusedWorkspace: Number(workspaceCell.modelData.id) === view.focusedWorkspaceId
-      switcherOpen: view.switcherOpen
-      captureEnabled: view.switcherOpen && view.previewMode !== WindowModel.PREVIEW_NONE
-      previewMode: view.previewMode
-      firstWindowIndex: workspaceCell.modelData.startIndex
+      captureEnabled: view.switcherOpen && workspaceCell.inViewport
+      captureStart: view.captureOffsets[workspaceCell.index] === undefined ? 0 : view.captureOffsets[workspaceCell.index]
       captureLimit: view.captureLimit
-      workspaceNames: view.workspaceNames
-      animationMs: view.animationMs
-      renaming: Number(workspaceCell.modelData.id) === view.renamingWorkspaceId
-      onHovered: if (view.renamingWorkspaceId <= 0) view.cardHovered(workspaceCell.index)
-      onActivateRequested: view.cardActivated(workspaceCell.index)
-      onCloseAllRequested: view.cardCloseAllRequested(workspaceCell.index)
-      onRenameRequested: view.cardRenameRequested(workspaceCell.index)
-      onRenameCommitted: function(name) {
-        view.cardRenameCommitted(Number(workspaceCell.modelData.id), name)
-      }
-      onRenameCancelled: view.cardRenameCancelled()
-      onWindowActivateRequested: function(windowIndex) {
-        view.cardWindowActivated(workspaceCell.modelData.startIndex + windowIndex)
-      }
-      onWindowCloseRequested: function(windowIndex) {
-        view.cardWindowCloseRequested(workspaceCell.modelData.startIndex + windowIndex)
-      }
+      onActivated: view.cardActivated(workspaceCell.index)
+      onFrameReady: view.frameReady()
     }
   }
 }

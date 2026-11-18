@@ -8,9 +8,16 @@ trap 'rm -rf -- "$test_dir"' EXIT
 ln -s "$OMARCHY_SOURCE/shell/Commons" "$test_dir/Commons"
 ln -s "$PLUGIN_DIR" "$test_dir/plugin"
 cp "$PLUGIN_DIR/test/presentation.qml" "$test_dir/shell.qml"
-QT_QPA_PLATFORM=offscreen timeout 20s quickshell -p "$test_dir" > "$test_dir/result.log" 2>&1
-# The standalone host does not provide all shell singleton initialization;
-# visual validation must also be done in the live Omarchy shell.
+if ! QT_QPA_PLATFORM=offscreen timeout 15s quickshell -p "$test_dir" > "$test_dir/result.log" 2>&1; then
+  cat "$test_dir/result.log" >&2
+  exit 1
+fi
+# Offscreen platform/GL warnings are expected; JavaScript and binding failures
+# are not. Visual and native capture validation must also use the live shell.
+if rg -q 'TypeError|ReferenceError|Binding loop|Unable to assign' "$test_dir/result.log"; then
+  cat "$test_dir/result.log" >&2
+  exit 1
+fi
 sed -n '/CHECK geometry/p; /FAIL:/p; /RESULT failures=/p' "$test_dir/result.log"
 if ! rg -q 'RESULT failures=0' "$test_dir/result.log"; then
   cat "$test_dir/result.log" >&2

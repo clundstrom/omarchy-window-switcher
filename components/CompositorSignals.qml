@@ -22,7 +22,7 @@ Item {
     "workspace", "workspacev2", "focusedmon", "moveworkspace", "moveworkspacev2"
   ]
   readonly property var refreshEventNames: geometryEventNames.concat([
-    "activewindow", "activewindowv2", "urgent"
+    "activewindow", "activewindowv2"
   ])
 
   visible: false
@@ -82,8 +82,4 @@ Item {
     function onScreensChanged() { compositor.screenLayoutChanged() }
   }
 
-  Connections {
-    target: DesktopEntries.applications
-    function onValuesChanged() { compositor.refreshRequested() }
-  }
 }

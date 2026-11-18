@@ -1,834 +1,309 @@
 import QtQuick
-import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
-import qs.Commons
+import qs.Commons as Commons
 import "components"
-import "model/WindowSwitcherModel.js" as WindowModel
+import "model/WorkspaceModel.js" as WorkspaceModel
 import "model/WindowSnapshot.js" as WindowSnapshot
-import "model/Navigation.js" as Nav
 import "model/MruOrder.js" as MruOrder
+import "model/Navigation.js" as Navigation
 
 Item {
   id: root
-
+  // Plugin host injection; the workspace switcher does not require shell internals.
   property var shell: null
   property var manifest: null
-
   property bool opened: false
   property bool surfaceVisible: false
-  property real revealProgress: 0
   property var targetScreen: null
   property var originalToplevel: null
   property var pendingActivation: null
   property var allWindows: []
-  property var filteredWindows: []
+  property var windows: []
+  property var groups: []
   property var mruKeys: []
-  property int selectedIndex: -1
-  property string query: ""
-  property var activeFilter: ({ kind: WindowModel.FILTER_ALL })
-  property var sessionFilter: null
-  property var pillRows: []
-  property var windowGroups: []
-  property int totalWindowCount: 0
-  property int hiddenMinimizedCount: 0
-  property int minimizedCount: 0
-  property string viewMode: WindowModel.VIEW_WINDOWS
-  property string baseViewMode: WindowModel.VIEW_WINDOWS
-  property var sessionView: null
-  property string workspaceOrder: WindowModel.WORKSPACE_ORDER_RECENT
-  property var sessionWorkspaceOrder: null
-  property var workspaceNames: ({})
-  property bool workspaceNamesDirty: false
-  property int renamingWorkspaceId: 0
-  readonly property int workspaceNameCount: {
-    var count = 0
-    for (var workspaceId in workspaceNames) count++
-    return count
-  }
   property var workspaceMruKeys: []
   property var openWorkspaceMruKeys: []
-  property bool stickyFilter: false
-  property string previewMode: WindowModel.PREVIEW_STILL
-  property string activationMode: WindowModel.ACTIVATION_EXPLICIT
-  property bool showMinimized: true
-  property bool showSpecialWorkspaces: true
-  property int maxInitialCaptures: 20
-  property int activeCaptureLimit: 0
-  property int animationMs: 140
-  property bool modifierReleaseArmed: false
+  property int selectedIndex: -1
+  property int captureLimit: 0
+  readonly property int captureBudget: 20
   property int openSerial: 0
-  property var openingOverrides: ({})
-  property string appliedSettingsKey: ""
-  // Bounded, memory-only focus diagnostics; no titles, keystrokes or disk IO.
-  property var lifecycleEvents: []
+  property bool releaseArmed: false
+  property bool releaseActivation: true
   property bool modifierTrackingSeen: false
-  function finishModifierRelease() {
-    if (opened && activationMode === WindowModel.ACTIVATION_RELEASE
-        && renamingWorkspaceId <= 0 && !leftWorkspaceModifier.pressed && !rightWorkspaceModifier.pressed) {
-      noteLifecycle("global-modifier-released")
-      commitSelected()
-    }
-  }
-
-  // Track release in the compositor, including releases before the new layer
-  // receives keyboard focus. The ordinary key surface remains a fallback.
-  GlobalShortcut {
-    id: leftWorkspaceModifier
-    appid: "community.window-switcher"
-    name: "modifier-left"
-    description: "Workspace switcher left modifier state"
-    onPressed: { root.modifierTrackingSeen = true; root.noteLifecycle("global-modifier-pressed") }
-    onReleased: root.finishModifierRelease()
-  }
-  GlobalShortcut {
-    id: rightWorkspaceModifier
-    appid: "community.window-switcher"
-    name: "modifier-right"
-    description: "Workspace switcher right modifier state"
-    onPressed: { root.modifierTrackingSeen = true; root.noteLifecycle("global-modifier-pressed") }
-    onReleased: root.finishModifierRelease()
-  }
-  function noteLifecycle(event) {
-    lifecycleEvents = lifecycleEvents.concat([{
-      event: event, time: Date.now(), opened: opened,
-      focus: keySurface.activeFocus, armed: modifierReleaseArmed
-    }]).slice(-16)
-  }
-
-  WorkspacePresentation { id: workspacePresentation }
-  readonly property bool compactWorkspace: workspacePresentation.enabled
-    && viewMode === WindowModel.VIEW_WORKSPACES
-
-  // In workspace view the selection indexes windowGroups and the selected
-  // window is that workspace's most recently used one.
-  readonly property var selectedWindow: {
-    if (viewMode === WindowModel.VIEW_WORKSPACES) {
-      var group = selectedIndex >= 0 && selectedIndex < windowGroups.length ? windowGroups[selectedIndex] : null
-      return group && group.startIndex < filteredWindows.length ? filteredWindows[group.startIndex] : null
-    }
-    return selectedIndex >= 0 && selectedIndex < filteredWindows.length ? filteredWindows[selectedIndex] : null
-  }
+  property double openedAt: 0
+  property int firstFrameMs: -1
+  property int openWorkMs: 0
+  // Bounded memory-only diagnostics: no application text or persisted previews.
+  property var lifecycleEvents: []
   readonly property int focusedWorkspaceId: Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : 0
+  readonly property var selectedWindow: selectedIndex >= 0 && selectedIndex < groups.length
+    ? windows[groups[selectedIndex].startIndex] : null
 
-  function pluginSettings() {
-    if (!shell || !shell.shellConfig || !Array.isArray(shell.shellConfig.plugins)) return {}
-    var plugins = shell.shellConfig.plugins
-    var id = String(manifest && manifest.id ? manifest.id : "community.window-switcher")
-    for (var i = 0; i < plugins.length; i++) {
-      if (plugins[i] && String(plugins[i].id || "") === id) return plugins[i]
-    }
-    return {}
+  function noteLifecycle(event) {
+    lifecycleEvents = lifecycleEvents.concat([{ event: event, time: Date.now() }]).slice(-16)
   }
-
   function currentToplevels() {
     try { return ToplevelManager.toplevels.values || [] } catch (error) { return [] }
   }
-
   function selectedKey() {
-    if (viewMode === WindowModel.VIEW_WORKSPACES) {
-      var group = selectedIndex >= 0 && selectedIndex < windowGroups.length ? windowGroups[selectedIndex] : null
-      return group ? WindowModel.GROUP_SELECTION_PREFIX + group.key : ""
-    }
-    return selectedWindow ? selectedWindow.key : ""
+    return selectedIndex >= 0 && selectedIndex < groups.length ? groups[selectedIndex].key : ""
   }
-
-  function groupIndexForKey(key) {
-    if (!key || String(key).indexOf(WindowModel.GROUP_SELECTION_PREFIX) !== 0) return -1
-    var raw = String(key).slice(WindowModel.GROUP_SELECTION_PREFIX.length)
-    for (var i = 0; i < windowGroups.length; i++) {
-      if (String(windowGroups[i].key) === raw) return i
-    }
+  function groupIndex(key) {
+    for (var i = 0; i < groups.length; i++) if (groups[i].key === String(key)) return i
     return -1
   }
-
-  function workspaceGroupIndexForId(workspaceId) {
-    for (var i = 0; i < windowGroups.length; i++) {
-      if (Number(windowGroups[i] && windowGroups[i].id) === Number(workspaceId)) return i
-    }
-    return -1
-  }
-
-  function visibleItemCount() {
-    return viewMode === WindowModel.VIEW_WORKSPACES ? windowGroups.length : filteredWindows.length
-  }
-
-  function indexForKey(values, key) {
-    if (!key) return -1
-    for (var i = 0; i < values.length; i++) if (values[i] && values[i].key === key) return i
-    return -1
-  }
-
-  function refreshFiltered(preferredKey, initialDirection) {
-    var previousIndex = selectedIndex
-    var context = { focusedWorkspaceId: focusedWorkspaceId }
-    var visibleAll = WindowModel.filterWindows(
-      allWindows, "", { kind: WindowModel.FILTER_ALL }, context, showMinimized,
-      showSpecialWorkspaces, workspaceNames)
-    totalWindowCount = visibleAll.length
-    pillRows = WindowModel.pillRows(visibleAll, context)
-    // Counted over every window rather than the filtered set: the toggle is a
-    // session control, and it must not flicker in and out while the user types.
-    minimizedCount = WindowModel.minimizedCount(allWindows, showSpecialWorkspaces)
-
-    var ordered = WindowModel.filterWindows(
-      allWindows,
-      query,
-      activeFilter,
-      context,
-      showMinimized,
-      showSpecialWorkspaces,
-      workspaceNames)
-    hiddenMinimizedCount = 0
-    if (!showMinimized) {
-      var includingMinimized = WindowModel.filterWindows(
-        allWindows, query, activeFilter, context, true, showSpecialWorkspaces, workspaceNames)
-      for (var hiddenIndex = 0; hiddenIndex < includingMinimized.length; hiddenIndex++) {
-        if (WindowModel.isMinimizedWindow(includingMinimized[hiddenIndex])) hiddenMinimizedCount++
-      }
-    }
-    var sectioned = viewMode !== WindowModel.VIEW_WINDOWS
-    var next = sectioned
-      ? WindowModel.orderByWorkspace(ordered, workspaceOrder, openWorkspaceMruKeys)
-      : ordered
-    filteredWindows = next
-    windowGroups = sectioned ? WindowModel.groupWindows(next, visibleAll, workspaceNames) : []
-    if (renamingWorkspaceId > 0 && workspaceGroupIndexForId(renamingWorkspaceId) < 0)
-      cancelWorkspaceRename()
-
-    if (viewMode === WindowModel.VIEW_WORKSPACES) {
-      if (windowGroups.length === 0) {
-        selectedIndex = -1
-        return
-      }
-      var preservedGroup = groupIndexForKey(preferredKey)
-      if (preservedGroup >= 0) selectedIndex = preservedGroup
-      else if (initialDirection !== undefined) {
-        // Alt-Tab semantics per workspace: start on the workspace of the most
-        // recent window that is not on the focused workspace.
-        var workspaceKey = initialDirection === 0
-          ? String(focusedWorkspaceId)
-          : WindowModel.previousWorkspaceKey(ordered, focusedWorkspaceId, openWorkspaceMruKeys)
-        var initialGroup = groupIndexForKey(WindowModel.GROUP_SELECTION_PREFIX + workspaceKey)
-        selectedIndex = initialGroup >= 0 ? initialGroup : 0
-        // A reverse opening starts before the current workspace in the frozen
-        // MRU list, rather than selecting the same previous workspace as Tab.
-        if (initialDirection < 0 && workspaceOrder === WindowModel.WORKSPACE_ORDER_RECENT) {
-          var currentGroup = workspaceGroupIndexForId(focusedWorkspaceId)
-          selectedIndex = Nav.moveSequential(currentGroup >= 0 ? currentGroup : 0,
-            -1, windowGroups.length)
-        }
-      }
-      else selectedIndex = Math.max(0, Math.min(previousIndex, windowGroups.length - 1))
-      revealSelected()
-      return
-    }
-
-    if (next.length === 0) {
-      selectedIndex = -1
-      return
-    }
-
-    var preserved = indexForKey(next, preferredKey)
-    if (preserved >= 0) selectedIndex = preserved
-    else if (initialDirection !== undefined) {
-      // Pick the initial window in MRU order even when the display order is
-      // grouped, so the first Tab still lands on the previous window.
-      var mruIndex = Nav.initialSelection(ordered.length, initialDirection)
-      selectedIndex = viewMode === WindowModel.VIEW_GROUPED && mruIndex >= 0
-        ? Math.max(0, indexForKey(next, ordered[mruIndex].key))
-        : mruIndex
-    }
-    else if (preferredKey) selectedIndex = Math.max(0, Math.min(previousIndex, next.length - 1))
-    else selectedIndex = 0
-
-    revealSelected()
-  }
-
   function rebuildWindows(initialDirection) {
-    var preferredKey = selectedKey()
+    var previousKey = selectedKey()
+    var previousIndex = selectedIndex
     var toplevels = currentToplevels()
     records.syncObjectKeys(toplevels)
-    var entries = records.desktopEntries()
     var rows = []
     for (var i = 0; i < toplevels.length; i++) {
-      if (toplevels[i]) rows.push(records.recordFor(toplevels[i], i, entries))
+      if (toplevels[i]) rows.push(records.recordFor(toplevels[i], i))
     }
-
     mruKeys = MruOrder.pruneMru(mruKeys, rows, 200)
     var active = ToplevelManager.activeToplevel
-    if (active) {
-      for (var j = 0; j < rows.length; j++) {
-        if (rows[j].toplevel === active) {
-          mruKeys = MruOrder.noteMru(mruKeys, rows[j].key, rows, 200)
-          break
-        }
-      }
-    }
-    var ordered = MruOrder.orderByMru(rows, mruKeys)
-    workspaceMruKeys = WindowModel.completeWorkspaceMru(
-      workspaceMruKeys,
-      ordered,
-      Hyprland.focusedWorkspace ? focusedWorkspaceId : null,
-      100)
-
-    // Terminal progress indicators and browsers can change their title many
-    // times per second. The snapshot module preserves capture delegates for
-    // title-only changes and refreshes all other visible record changes.
-    if (opened && initialDirection === undefined) {
-      var snapshot = WindowSnapshot.reconcile(allWindows, ordered)
-      if (!snapshot.changed) return
-      ordered = snapshot.records
-    }
-
-    allWindows = ordered
-    if (opened) {
-      if (initialDirection !== undefined) openWorkspaceMruKeys = workspaceMruKeys.slice()
-      refreshFiltered(preferredKey, initialDirection)
-    }
-  }
-
-  function noteActiveToplevel() {
-    var active = ToplevelManager.activeToplevel
-    if (!active) return
-    var key = ""
-    for (var i = 0; i < allWindows.length; i++) {
-      var record = allWindows[i]
-      if (record.toplevel === active) {
-        key = record.key
+    for (var j = 0; active && j < rows.length; j++) {
+      if (rows[j].toplevel === active) {
+        mruKeys = MruOrder.noteMru(mruKeys, rows[j].key, rows, 200)
         break
       }
     }
-    if (key) {
-      mruKeys = MruOrder.noteMru(mruKeys, key, allWindows, 200)
-      root.noteWorkspaceUsed(record.workspaceId)
+    allWindows = MruOrder.orderByMru(rows, mruKeys)
+    workspaceMruKeys = WorkspaceModel.completeWorkspaceMru(workspaceMruKeys, allWindows,
+      Hyprland.focusedWorkspace ? focusedWorkspaceId : null, 100)
+    if (!opened) return
+    if (initialDirection !== undefined) openWorkspaceMruKeys = workspaceMruKeys.slice()
+    var next = WorkspaceModel.orderByWorkspace(WorkspaceModel.regularWindows(allWindows), openWorkspaceMruKeys)
+    if (initialDirection === undefined) {
+      var snapshot = WindowSnapshot.reconcile(windows, next)
+      if (!snapshot.changed) return
+      next = snapshot.records
+    }
+    windows = next
+    groups = WorkspaceModel.groupWindows(next)
+    var preserved = groupIndex(previousKey)
+    if (!groups.length) selectedIndex = -1
+    else if (initialDirection !== undefined) {
+      if (initialDirection < 0) {
+        var current = groupIndex(String(focusedWorkspaceId))
+        selectedIndex = Navigation.moveSequential(current >= 0 ? current : 0, -1, groups.length)
+      } else {
+        var key = initialDirection === 0 ? String(focusedWorkspaceId)
+          : WorkspaceModel.previousWorkspaceKey(next, focusedWorkspaceId, openWorkspaceMruKeys)
+        selectedIndex = Math.max(0, groupIndex(key))
+      }
+    } else selectedIndex = preserved >= 0 ? preserved : Math.max(0, Math.min(previousIndex, groups.length - 1))
+    revealSelected()
+  }
+  function noteActiveToplevel() {
+    var active = ToplevelManager.activeToplevel
+    if (!active) return
+    for (var i = 0; i < allWindows.length; i++) {
+      var record = allWindows[i]
+      if (record.toplevel === active) {
+        mruKeys = MruOrder.noteMru(mruKeys, record.key, allWindows, 200)
+        workspaceMruKeys = WorkspaceModel.noteWorkspaceMru(workspaceMruKeys, record.workspaceId, 100)
+        break
+      }
     }
     modelRefresh.restart()
   }
-
-  function noteWorkspaceUsed(workspaceId) {
-    workspaceMruKeys = WindowModel.noteWorkspaceMru(workspaceMruKeys, workspaceId, 100)
-  }
-
   function targetScreenForOpen() {
     var screens = Quickshell.screens || []
     var focused = Hyprland.focusedMonitor
     for (var i = 0; i < screens.length; i++) {
       var monitor = Hyprland.monitorFor(screens[i])
-      if (focused && monitor === focused) return screens[i]
-      if (focused && monitor && monitor.id === focused.id) return screens[i]
-      if (focused && String(screens[i].name || "") === String(focused.name || "")) return screens[i]
+      if (focused && (monitor === focused || (monitor && monitor.id === focused.id)
+          || String(screens[i].name || "") === String(focused.name || ""))) return screens[i]
     }
-
     var active = ToplevelManager.activeToplevel
-    if (active && active.screens && active.screens.length > 0) return active.screens[0]
-    return screens.length > 0 ? screens[0] : null
+    if (active && active.screens && active.screens.length) return active.screens[0]
+    return screens.length ? screens[0] : null
   }
-
   function revealSelected() {
-    if (!opened || selectedIndex < 0) return
     Qt.callLater(function() {
-      if (root.opened && root.selectedIndex >= 0) viewArea.reveal(root.selectedIndex)
+      if (!root.opened || root.selectedIndex < 0) return
+      workspaceView.forceLayout()
+      workspaceView.positionViewAtIndex(root.selectedIndex, GridView.Contain)
     })
   }
-
-  function selectIndex(index) {
-    selectedIndex = Nav.wrappedIndex(index, visibleItemCount())
+  function step(direction) {
+    selectedIndex = Navigation.moveSequential(selectedIndex, direction, groups.length)
     revealSelected()
   }
-
-  function selectAdjacent(direction) {
-    selectedIndex = Nav.moveSequential(selectedIndex, direction, visibleItemCount())
-    revealSelected()
-  }
-
-  function selectGrid(horizontal, vertical) {
-    if (viewMode === WindowModel.VIEW_GROUPED) {
-      var sizes = []
-      for (var i = 0; i < windowGroups.length; i++) sizes.push(windowGroups[i].size)
-      selectedIndex = Nav.moveGrouped(
-        selectedIndex, horizontal, vertical, sizes, viewArea.groupColumns)
-    } else if (viewMode === WindowModel.VIEW_WORKSPACES) {
-      selectedIndex = Nav.moveGrid(
-        selectedIndex, horizontal, vertical, windowGroups.length, viewArea.workspaceColumns)
-    } else {
-      selectedIndex = Nav.moveGrid(
-        selectedIndex, horizontal, vertical, filteredWindows.length, viewArea.flatColumns)
+  function finishModifierRelease() {
+    if (opened && releaseActivation && !leftModifier.pressed && !rightModifier.pressed) {
+      noteLifecycle("modifier-released")
+      commitSelected()
     }
-    revealSelected()
   }
-
-  function setViewMode(mode) {
-    if (WindowModel.VIEW_VALUES.indexOf(mode) < 0 || mode === viewMode) return
-    var preferred = ""
-    if (mode === WindowModel.VIEW_WORKSPACES) {
-      var selected = selectedWindow
-      preferred = selected && selected.workspaceId !== undefined && selected.workspaceId !== null
-        ? WindowModel.GROUP_SELECTION_PREFIX + String(selected.workspaceId) : ""
-    } else if (viewMode === WindowModel.VIEW_WORKSPACES) {
-      var group = selectedIndex >= 0 && selectedIndex < windowGroups.length ? windowGroups[selectedIndex] : null
-      var front = group && group.startIndex < filteredWindows.length ? filteredWindows[group.startIndex] : null
-      preferred = front ? front.key : ""
-    } else {
-      preferred = selectedKey()
-    }
-    viewMode = mode
-    if (mode !== WindowModel.VIEW_WORKSPACES) baseViewMode = mode
-    sessionView = mode
-    refreshFiltered(preferred)
-  }
-
-  function updateQuery(nextQuery) {
-    var preferred = selectedKey()
-    query = String(nextQuery || "").slice(0, 128)
-    refreshFiltered(preferred)
-  }
-
-  function setFilter(filter) {
-    var normalized = WindowModel.normalizeFilter(filter) || { kind: WindowModel.FILTER_ALL }
-    if (normalized.kind === WindowModel.FILTER_WORKSPACE
-        && (normalized.id === undefined || normalized.id === null))
-      normalized = { kind: WindowModel.FILTER_WORKSPACE, id: focusedWorkspaceId }
-    var preferred = selectedKey()
-    activeFilter = normalized
-    sessionFilter = normalized
-    refreshFiltered(preferred)
-  }
-
-  function toggleWorkspaceFilter(workspaceId) {
-    if (activeFilter.kind === WindowModel.FILTER_WORKSPACE
-        && Number(activeFilter.id) === Number(workspaceId))
-      setFilter({ kind: WindowModel.FILTER_ALL })
-    else
-      setFilter({ kind: WindowModel.FILTER_WORKSPACE, id: workspaceId })
-  }
-
-  function toggleMinimizedVisibility() {
-    var preferred = selectedKey()
-    showMinimized = !showMinimized
-    refreshFiltered(preferred)
-  }
-
-  function setWorkspaceOrder(order) {
-    if (WindowModel.WORKSPACE_ORDER_VALUES.indexOf(order) < 0) return
-    var preferred = selectedKey()
-    workspaceOrder = order
-    sessionWorkspaceOrder = order
-    refreshFiltered(preferred)
-  }
-
-  function toggleWorkspaceOrder() {
-    setWorkspaceOrder(workspaceOrder === WindowModel.WORKSPACE_ORDER_RECENT
-      ? WindowModel.WORKSPACE_ORDER_NUMBER
-      : WindowModel.WORKSPACE_ORDER_RECENT)
-  }
-
-  function beginWorkspaceRename(index) {
-    if (viewMode !== WindowModel.VIEW_WORKSPACES
-        || index < 0 || index >= windowGroups.length) return
-    var group = windowGroups[index]
-    var id = Number(group && group.id)
-    if (!isFinite(id) || Math.floor(id) !== id || id <= 0) return
-    selectIndex(index)
-    renamingWorkspaceId = id
-  }
-
-  function cancelWorkspaceRename() {
-    renamingWorkspaceId = 0
-    Qt.callLater(function() { if (root.opened) keySurface.forceActiveFocus() })
-  }
-
-  function setWorkspaceName(workspaceId, name) {
-    var id = Number(workspaceId)
-    if (!isFinite(id) || Math.floor(id) !== id || id <= 0
-        || id !== renamingWorkspaceId || workspaceGroupIndexForId(id) < 0) {
-      cancelWorkspaceRename()
-      return
-    }
-
-    var next = {}
-    for (var key in workspaceNames) next[key] = workspaceNames[key]
-    var candidate = {}
-    candidate[String(id)] = name
-    var normalized = WindowModel.normalizeWorkspaceNames(candidate)
-    if (normalized[String(id)]) next[String(id)] = normalized[String(id)]
-    else delete next[String(id)]
-
-    workspaceNames = WindowModel.normalizeWorkspaceNames(next)
-    workspaceNamesDirty = true
-    renamingWorkspaceId = 0
-    // Card labels bind directly to workspaceNames. Rebuilding the group model
-    // here would tear down every workspace delegate (and its screencopy
-    // resources) just to change one line of text. Search is the only case that
-    // needs a refilter because aliases participate in matching.
-    if (String(query || "").trim())
-      refreshFiltered(WindowModel.GROUP_SELECTION_PREFIX + String(id))
-    Qt.callLater(function() { if (root.opened) keySurface.forceActiveFocus() })
-  }
-
-  function resetWorkspaceNames() {
-    if (workspaceNameCount <= 0) return
-    var preferred = selectedKey()
-    renamingWorkspaceId = 0
-    workspaceNames = WindowModel.normalizeWorkspaceNames({})
-    workspaceNamesDirty = true
-    // Aliases participate in search, so clearing them can remove matches.
-    // Otherwise card labels update directly without rebuilding captures.
-    if (String(query || "").trim()) refreshFiltered(preferred)
-    Qt.callLater(function() { if (root.opened) keySurface.forceActiveFocus() })
-  }
-
   function beginCaptureRamp() {
     captureRamp.stop()
-    activeCaptureLimit = 0
-    if (!opened || previewMode === WindowModel.PREVIEW_NONE) return
-    captureRamp.start()
+    captureLimit = 0
+    if (opened && windows.length) captureRamp.start()
   }
-
-  function persistWorkspaceNames() {
-    if (!workspaceNamesDirty || !shell || typeof shell.updateEntryInline !== "function") return
-    workspaceNamesDirty = false
-    var current = pluginSettings()
-    var id = String(manifest && manifest.id ? manifest.id : "community.window-switcher")
-    var entry = { id: id }
-    for (var key in current) if (key !== "id" && key !== "workspaceNames") entry[key] = current[key]
-    var hasNames = false
-    for (var workspaceId in workspaceNames) {
-      hasNames = true
-      break
-    }
-    if (hasNames) entry.workspaceNames = workspaceNames
-    shell.updateEntryInline(id, entry)
+  function geometryReady() {
+    if (!opened) return
+    geometrySettle.stop()
+    rebuildWindows()
+    if (!captureLimit) beginCaptureRamp()
+    noteLifecycle("geometry-ready")
   }
-
-  function beginClose() {
-    if (!surfaceVisible) return
-    noteLifecycle("closing")
-    captureRamp.stop()
-    activeCaptureLimit = 0
-    renamingWorkspaceId = 0
-    opened = false
-    modifierReleaseArmed = false
-    revealProgress = 0
-    closeAnimation.interval = Math.max(1, compactWorkspace ? 0 : Style.duration(animationMs))
-    closeAnimation.restart()
-  }
-
-  function cancel() {
-    pendingActivation = originalToplevel
-    beginClose()
-  }
-
-  function commitSelected() {
-    var selected = selectedWindow
-    if (!selected || !selected.toplevel) {
-      cancel()
-      return
-    }
-    pendingActivation = selected.toplevel
-    beginClose()
-  }
-
-  // A workspace miniature stands for one window rather than for its card, so
-  // the pointer acts on that window instead of on the card's most recent one.
-  function activateWindowAt(index) {
-    var record = index >= 0 && index < filteredWindows.length ? filteredWindows[index] : null
-    if (!record || !record.toplevel) {
-      cancel()
-      return
-    }
-    pendingActivation = record.toplevel
-    beginClose()
-  }
-
-  function closeWindowAt(index) {
-    var record = index >= 0 && index < filteredWindows.length ? filteredWindows[index] : null
-    if (record && record.toplevel) record.toplevel.close()
-  }
-
-  function closeSelectedWindow() {
-    // A workspace card stands for many windows; closing from it would be a
-    // surprise, so the close shortcut only acts in the window views.
-    if (viewMode === WindowModel.VIEW_WORKSPACES) return
-    var selected = selectedWindow
-    if (selected && selected.toplevel) selected.toplevel.close()
-  }
-
-  // Ask every visible window on a workspace to close, regardless of the
-  // current search query. These are graceful close requests; applications
-  // may prompt to save instead of quitting. A null id targets windows with
-  // no workspace association.
-  function closeWorkspaceWindows(workspaceId) {
-    var none = workspaceId === undefined || workspaceId === null
-    for (var i = 0; i < allWindows.length; i++) {
-      var record = allWindows[i]
-      if (!record || !record.toplevel) continue
-      var unassociated = record.workspaceId === undefined || record.workspaceId === null
-      if (none ? !unassociated : (unassociated || Number(record.workspaceId) !== Number(workspaceId))) continue
-      if (!showMinimized && WindowModel.isMinimizedWindow(record)) continue
-      if (!showSpecialWorkspaces && WindowModel.isSpecialWorkspace(record)) continue
-      record.toplevel.close()
-    }
-  }
-
-  function closeWorkspaceGroup(groupIndex) {
-    var group = groupIndex >= 0 && groupIndex < windowGroups.length ? windowGroups[groupIndex] : null
-    if (!group) return
-    closeWorkspaceWindows(group.key === WindowModel.NO_WORKSPACE_KEY ? null : group.id)
-  }
-
-  function resolvedFilter(options) {
-    var filter = options.filter || { kind: WindowModel.FILTER_ALL }
-    if (options.stickyFilter && !options.filterExplicit && sessionFilter) filter = sessionFilter
-    if (filter.kind === WindowModel.FILTER_WORKSPACE
-        && (filter.id === undefined || filter.id === null))
-      filter = { kind: WindowModel.FILTER_WORKSPACE, id: focusedWorkspaceId }
-    return filter
-  }
-
-  function resolvedView(options) {
-    if (!options.viewExplicit && sessionView) return sessionView
-    return options.view
-  }
-
-  function resolvedWorkspaceOrder(options) {
-    if (!options.workspaceOrderExplicit && sessionWorkspaceOrder) return sessionWorkspaceOrder
-    return options.workspaceOrder
-  }
-
-  function applyOptions(options) {
-    previewMode = options.previewMode
-    activationMode = options.activation
-    showMinimized = options.showMinimized
-    showSpecialWorkspaces = options.showSpecialWorkspaces
-    maxInitialCaptures = options.maxInitialCaptures
-    animationMs = options.animationMs
-    viewMode = resolvedView(options)
-    workspaceOrder = resolvedWorkspaceOrder(options)
-    if (!workspaceNamesDirty) workspaceNames = options.workspaceNames
-    baseViewMode = viewMode !== WindowModel.VIEW_WORKSPACES ? viewMode
-      : (options.view !== WindowModel.VIEW_WORKSPACES ? options.view : WindowModel.VIEW_WINDOWS)
-    stickyFilter = options.stickyFilter
-    activeFilter = resolvedFilter(options)
-  }
-
   function open(payloadJson) {
-    var payload = WindowModel.parsePayload(payloadJson)
-    var settings = pluginSettings()
-    var settingsKey = WindowModel.optionApplicationKey(
-      WindowModel.effectiveOptions(settings, {}))
-    var hasOverrides = WindowModel.hasInvocationOverrides(payload)
-    if (!opened || hasOverrides)
-      openingOverrides = WindowModel.mergeInvocationOverrides(
-        opened ? openingOverrides : {}, payload)
-    var invocation = WindowModel.mergeInvocationOverrides(openingOverrides, {})
-    invocation.direction = payload.direction
-    var options = WindowModel.effectiveOptions(settings, invocation)
-
-    if (opened
-        && !hasOverrides
-        && settingsKey === appliedSettingsKey) {
-      if (options.direction !== 0) selectAdjacent(options.direction)
-      focusDelay.restart()
-      return
-    }
-
+    var payload = ({})
+    try { payload = JSON.parse(payloadJson || "{}") || ({}) } catch (error) {}
+    openWorkspace(Number(payload.direction) < 0 ? -1 : (Number(payload.direction) === 0 ? 0 : 1), payload.activation !== "explicit")
+  }
+  function openWorkspace(direction, activateOnRelease) {
     if (opened) {
-      var previousPreviewMode = previewMode
-      var previousMaxInitialCaptures = maxInitialCaptures
-      applyOptions(options)
-      appliedSettingsKey = settingsKey
-      if (previewMode !== previousPreviewMode
-          || maxInitialCaptures !== previousMaxInitialCaptures) beginCaptureRamp()
-      if (payload.query !== undefined) updateQuery(options.query)
-      else refreshFiltered(selectedKey())
-      if (options.direction !== 0) selectAdjacent(options.direction)
-      focusDelay.restart()
+      if (direction) step(direction)
       return
     }
-
+    var started = Date.now()
     openSerial++
-    closeAnimation.stop()
-    applyOptions(options)
-    appliedSettingsKey = settingsKey
-    query = options.query
-    if (shell && shell.appLibrary && typeof shell.appLibrary.refreshIcons === "function")
-      shell.appLibrary.refreshIcons()
+    closeTick.stop()
     originalToplevel = ToplevelManager.activeToplevel
     pendingActivation = null
     targetScreen = targetScreenForOpen()
-    surfaceVisible = true
+    releaseActivation = activateOnRelease
+    releaseArmed = false
+    captureLimit = 0
+    openedAt = started
+    firstFrameMs = -1
     opened = true
-    captureRamp.stop()
-    activeCaptureLimit = 0
-    modifierReleaseArmed = false
-    revealProgress = 0
-    // Window geometry and focus history come from Hyprland's IPC snapshot,
-    // which Quickshell only updates on request; ask for fresh data and pick
-    // it up with a follow-up rebuild once the roundtrip has settled.
+    rebuildWindows(direction)
+    surfaceVisible = true
     Hyprland.refreshToplevels()
     Hyprland.refreshMonitors()
     geometrySettle.restart()
-    rebuildWindows(options.direction)
+    focusDelay.restart()
+    openWorkMs = Date.now() - started
     noteLifecycle("opened")
     Qt.callLater(function() {
-      if (!root.opened) return
-      root.revealProgress = 1
-      if (root.modifierTrackingSeen) root.finishModifierRelease()
+      if (root.opened && root.modifierTrackingSeen) root.finishModifierRelease()
     })
-    focusDelay.restart()
   }
-
-  function close() {
-    cancel()
+  function beginClose(target) {
+    if (!opened) return
+    pendingActivation = target
+    opened = false
+    releaseArmed = false
+    captureRamp.stop()
+    geometrySettle.stop()
+    captureLimit = 0
+    noteLifecycle("closing")
+    closeTick.restart()
   }
-
-  function ping() {
-    return "ok"
+  function commitSelected() {
+    var selected = selectedWindow
+    beginClose(selected && selected.toplevel ? selected.toplevel : originalToplevel)
   }
-
+  function cancel() { beginClose(originalToplevel) }
+  function close() { cancel() }
+  function ping() { return "ok" }
   function status() {
-    return JSON.stringify({
-      opened: opened,
-      surfaceVisible: surfaceVisible,
-      windowCount: allWindows.length,
-      filteredCount: filteredWindows.length,
-      selectedIndex: selectedIndex,
-      selectedKey: selectedWindow ? selectedWindow.key : "",
-      selectedTitle: selectedWindow ? selectedWindow.title : "",
-      selectedAddress: selectedWindow ? selectedWindow.address : "",
-      filter: activeFilter,
-      view: viewMode,
-      workspaceOrder: workspaceOrder,
-      workspaceNames: workspaceNames,
-      workspaceCount: windowGroups.length,
-      workspaceKeys: windowGroups.map(function(group) { return group.key }),
-      workspaceHistory: openWorkspaceMruKeys,
-      liveWorkspaceHistory: workspaceMruKeys,
-      focusedWorkspaceId: focusedWorkspaceId,
-      selectedWorkspaceId: selectedWindow ? selectedWindow.workspaceId : null,
-      previewMode: previewMode,
-      showMinimized: showMinimized,
-      hiddenMinimizedCount: hiddenMinimizedCount,
-      minimizedCount: minimizedCount,
-      maxInitialCaptures: maxInitialCaptures,
-      activeCaptureLimit: activeCaptureLimit,
-      presentationReady: revealProgress === 1,
-      keyFocus: keySurface.activeFocus,
-      releaseArmed: modifierReleaseArmed,
-      activationMode: activationMode,
-      closeTimerRunning: closeAnimation.running,
-      lifecycleEvents: lifecycleEvents,
-      modifierTrackingSeen: modifierTrackingSeen,
-      globalModifierHeld: leftWorkspaceModifier.pressed || rightWorkspaceModifier.pressed,
-      targetScreen: targetScreen ? String(targetScreen.name || "") : ""
-    })
+    return JSON.stringify({ opened: opened, surfaceVisible: surfaceVisible,
+      windowCount: allWindows.length, workspaceCount: groups.length,
+      workspaceKeys: groups.map(function(group) { return group.key }),
+      workspaceHistory: openWorkspaceMruKeys, liveWorkspaceHistory: workspaceMruKeys,
+      selectedIndex: selectedIndex, selectedWorkspaceId: selectedWindow ? selectedWindow.workspaceId : null,
+      focusedWorkspaceId: focusedWorkspaceId, targetScreen: targetScreen ? targetScreen.name : "",
+      captureLimit: captureLimit, captureBudget: captureBudget, openWorkMs: openWorkMs, firstFrameMs: firstFrameMs,
+      keyFocus: keySurface.activeFocus, releaseArmed: releaseArmed, releaseActivation: releaseActivation,
+      modifierTrackingSeen: modifierTrackingSeen, globalModifierHeld: leftModifier.pressed || rightModifier.pressed,
+      lifecycleEvents: lifecycleEvents })
   }
 
-  WindowRecords {
-    id: records
-
-    shell: root.shell
+  WorkspacePresentation { id: appearance }
+  WindowRecords { id: records }
+  GlobalShortcut {
+    appid: "community.window-switcher"
+    name: "next-workspace"
+    description: "Next recent workspace"
+    onPressed: { root.noteLifecycle("invoked"); root.openWorkspace(1, true) }
   }
-
+  GlobalShortcut {
+    appid: "community.window-switcher"
+    name: "previous-workspace"
+    description: "Previous recent workspace"
+    onPressed: { root.noteLifecycle("invoked"); root.openWorkspace(-1, true) }
+  }
+  GlobalShortcut {
+    id: leftModifier
+    appid: "community.window-switcher"
+    name: "modifier-left"
+    description: "Workspace switcher left modifier state"
+    onPressed: { root.modifierTrackingSeen = true; root.noteLifecycle("modifier-pressed") }
+    onReleased: root.finishModifierRelease()
+  }
+  GlobalShortcut {
+    id: rightModifier
+    appid: "community.window-switcher"
+    name: "modifier-right"
+    description: "Workspace switcher right modifier state"
+    onPressed: { root.modifierTrackingSeen = true; root.noteLifecycle("modifier-pressed") }
+    onReleased: root.finishModifierRelease()
+  }
   CompositorSignals {
     switcherOpen: root.opened
     onRefreshRequested: modelRefresh.restart()
     onGeometryRefreshRequested: geometrySettle.restart()
-    onGeometrySnapshotReceived: {
-      if (root.opened && root.compactWorkspace && geometrySettle.running
-          && root.activeCaptureLimit === 0) {
-        geometrySettle.stop()
-        root.rebuildWindows()
-        root.beginCaptureRamp()
-        root.noteLifecycle("geometry-ready")
-      }
-    }
+    onGeometrySnapshotReceived: if (geometrySettle.running) root.geometryReady()
     onActiveWindowChanged: root.noteActiveToplevel()
-    onWorkspaceFocusChanged: function(workspaceId) { root.noteWorkspaceUsed(workspaceId) }
+    onWorkspaceFocusChanged: function(workspaceId) {
+      root.workspaceMruKeys = WorkspaceModel.noteWorkspaceMru(root.workspaceMruKeys, workspaceId, 100)
+    }
     onScreenLayoutChanged: {
       if (root.opened) root.targetScreen = root.targetScreenForOpen()
       modelRefresh.restart()
     }
   }
-
   Timer {
     id: focusDelay
-
     interval: 1
     onTriggered: {
       if (!root.opened) return
       keySurface.forceActiveFocus()
-      root.modifierReleaseArmed = true
-      root.noteLifecycle("release-armed")
+      root.releaseArmed = true
     }
   }
-
   Timer {
-    id: closeAnimation
-
-    interval: 140
+    id: closeTick
+    interval: 1
     onTriggered: {
       if (root.opened) return
       var target = root.pendingActivation
       var serial = root.openSerial
       root.surfaceVisible = false
-      root.noteLifecycle("hidden")
-      root.filteredWindows = []
-      root.windowGroups = []
-      root.query = ""
+      root.windows = []
+      root.groups = []
       root.originalToplevel = null
       root.pendingActivation = null
       root.targetScreen = null
-      Qt.callLater(function() {
-        if (serial === root.openSerial && !root.opened && target) target.activate()
-        if (serial === root.openSerial && !root.opened) root.persistWorkspaceNames()
-      })
+      noteLifecycle("hidden")
+      Qt.callLater(function() { if (serial === root.openSerial && !root.opened && target) target.activate() })
     }
   }
-
-  Timer {
-    id: modelRefresh
-
-    interval: 24
-    onTriggered: root.rebuildWindows()
-  }
-
-  Timer {
-    id: geometrySettle
-
-    interval: 160
-    onTriggered: {
-      root.rebuildWindows()
-      if (root.activeCaptureLimit === 0) root.beginCaptureRamp()
-    }
-  }
-
-  // Creating a full set of screencopy sources in one frame can allocate
-  // hundreds of megabytes and visibly stall the shell. Wait for the initial
-  // compositor geometry roundtrip, then attach a few sources per frame.
+  Timer { id: modelRefresh; interval: 24; onTriggered: root.rebuildWindows() }
+  Timer { id: geometrySettle; interval: 160; onTriggered: root.geometryReady() }
   Timer {
     id: captureRamp
-
-    interval: root.compactWorkspace ? 16 : 40
+    interval: 16
     repeat: true
     onTriggered: {
-      if (!root.opened || root.previewMode === WindowModel.PREVIEW_NONE) {
-        stop()
-        root.activeCaptureLimit = 0
-        return
-      }
-      root.activeCaptureLimit = Math.min(root.maxInitialCaptures, root.activeCaptureLimit + 2)
-      if (root.activeCaptureLimit >= root.maxInitialCaptures) stop()
+      if (!root.opened) { stop(); return }
+      var target = Math.min(root.captureBudget, root.windows.length)
+      root.captureLimit = Math.min(target, root.captureLimit + 2)
+      if (root.captureLimit >= target) stop()
     }
   }
-
   Component.onCompleted: rebuildWindows()
 
   PanelWindow {
     id: panel
-
     screen: root.targetScreen
     visible: root.surfaceVisible
     anchors { top: true; bottom: true; left: true; right: true }
@@ -837,202 +312,49 @@ Item {
     WlrLayershell.namespace: "omarchy-window-switcher"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
-    mask: Region {
-      width: root.opened ? panel.width : 0
-      height: root.opened ? panel.height : 0
-    }
-
-    Rectangle {
-      anchors.fill: parent
-      color: root.compactWorkspace ? "transparent" : Color.menu.scrim
-      opacity: root.revealProgress
-
-      Behavior on opacity {
-        NumberAnimation { duration: root.compactWorkspace ? 0 : Style.duration(root.animationMs); easing.type: Easing.OutCubic }
-      }
-    }
-
-    MouseArea {
-      anchors.fill: parent
-      enabled: root.opened
-      onClicked: root.cancel()
-    }
-
+    mask: Region { width: root.opened ? panel.width : 0; height: root.opened ? panel.height : 0 }
+    MouseArea { anchors.fill: parent; enabled: root.opened; onClicked: root.cancel() }
     SwitcherKeySurface {
       id: keySurface
-
       anchors.fill: parent
-      query: root.query
-      activationMode: root.activationMode
-      releaseArmed: root.modifierReleaseArmed
-      editingWorkspaceName: root.renamingWorkspaceId > 0
-      onActiveFocusChanged: root.noteLifecycle(activeFocus ? "focus-in" : "focus-out")
-      onEscapePressed: {
-        if (root.query) root.updateQuery("")
-        else if (root.activeFilter.kind !== WindowModel.FILTER_ALL)
-          root.setFilter({ kind: WindowModel.FILTER_ALL })
-        else root.cancel()
-      }
-      onCommitRequested: root.commitSelected()
-      onStepRequested: function(direction) { root.selectAdjacent(direction) }
-      onGridMoveRequested: function(horizontal, vertical) { root.selectGrid(horizontal, vertical) }
-      onAllFilterRequested: root.setFilter({ kind: WindowModel.FILTER_ALL })
-      onMinimizedToggleRequested: root.toggleMinimizedVisibility()
-      onWorkspaceOrderToggleRequested: root.toggleWorkspaceOrder()
-      onWorkspaceRenameRequested: root.beginWorkspaceRename(root.selectedIndex)
-      onViewToggleRequested: root.setViewMode(root.viewMode === WindowModel.VIEW_WORKSPACES
-        ? root.baseViewMode : WindowModel.VIEW_WORKSPACES)
-      onGroupToggleRequested: root.setViewMode(root.viewMode === WindowModel.VIEW_GROUPED
-        ? WindowModel.VIEW_WINDOWS : WindowModel.VIEW_GROUPED)
-      onWorkspaceDigitPressed: function(workspaceId) { root.toggleWorkspaceFilter(workspaceId) }
-      onCloseWindowRequested: root.closeSelectedWindow()
-      onQueryEdited: function(nextQuery) { root.updateQuery(nextQuery) }
-      onModifierReleased: {
-        root.noteLifecycle("modifier-released")
-        root.commitSelected()
-      }
-
+      releaseArmed: root.releaseArmed
+      releaseActivation: root.releaseActivation
+      onCancelled: root.cancel()
+      onCommitted: root.commitSelected()
+      onStepped: function(direction) { root.step(direction) }
+      onModifierReleased: root.commitSelected()
       Rectangle {
-        id: switcherCard
-
-        width: root.compactWorkspace
-          ? Math.min(parent.width - Style.space(48),
-              Math.max(switcherHeader.visible ? Style.space(900) : 0,
-                Math.max(1, Math.min(workspacePresentation.maxVisible, root.windowGroups.length))
-                  * (workspacePresentation.thumbnailWidth + workspacePresentation.spacing)
-                  + workspacePresentation.padding * 2))
-          : Math.max(360, Math.min(parent.width - Style.space(40), parent.width * 0.88))
-        height: root.compactWorkspace
-          ? Math.min(parent.height - Style.space(48), viewArea.compactCardHeight
-              + workspacePresentation.padding * 2
-              + (compactContext.visible ? compactContext.implicitHeight + Style.spacing.panelGap : 0)
-              + (switcherHeader.visible ? switcherHeader.implicitHeight + Style.spacing.panelGap : 0)
-              + (footerHints.visible ? footerHints.implicitHeight + Style.spacing.panelGap : 0))
-          : Math.max(300, Math.min(parent.height - Style.space(40), parent.height * 0.84))
+        id: strip
         anchors.centerIn: parent
-        color: root.compactWorkspace
-          ? Util.alpha(Color.menu.background, Color.menu.background.a * workspacePresentation.backgroundOpacity)
-          : Color.menu.background
-        radius: root.compactWorkspace ? workspacePresentation.cornerRadius : Style.cornerRadius
-        border.width: Math.max(1, Style.spacing.hairline)
-        border.color: root.compactWorkspace ? Util.alpha(Color.menu.border, 0.28) : Color.menu.border
-        opacity: root.revealProgress
-        scale: root.compactWorkspace ? 1 : 0.97 + 0.03 * root.revealProgress
-
-        Behavior on opacity {
-          NumberAnimation { duration: root.compactWorkspace ? 0 : Style.duration(root.animationMs); easing.type: Easing.OutCubic }
-        }
-        Behavior on scale {
-          NumberAnimation { duration: root.compactWorkspace ? 0 : Style.duration(root.animationMs); easing.type: Easing.OutCubic }
-        }
-
-        MouseArea {
+        width: Math.min(parent.width - Commons.Style.space(48),
+          Math.max(1, Math.min(appearance.maxVisible, root.groups.length))
+            * (appearance.thumbnailWidth + appearance.spacing) + appearance.padding * 2)
+        height: workspaceView.metrics.cardHeight + appearance.padding * 2
+        radius: appearance.cornerRadius
+        color: Commons.Util.alpha(Commons.Color.menu.background, Commons.Color.menu.background.a * appearance.backgroundOpacity)
+        border.width: 1
+        border.color: Commons.Util.alpha(Commons.Color.menu.border, 0.28)
+        MouseArea { anchors.fill: parent; onClicked: function(mouse) { mouse.accepted = true } }
+        WorkspaceGridView {
+          id: workspaceView
           anchors.fill: parent
-          onClicked: function(mouse) { mouse.accepted = true }
-        }
-
-        ColumnLayout {
-          anchors.fill: parent
-          anchors.margins: root.compactWorkspace ? workspacePresentation.padding : Style.spacing.panelPadding
-          spacing: Style.spacing.panelGap
-
-          SwitcherHeader {
-            id: switcherHeader
-            visible: !root.compactWorkspace || workspacePresentation.showHeader
-            Layout.fillWidth: true
-            pillRows: root.pillRows
-            activeFilter: root.activeFilter
-            showMinimized: root.showMinimized
-            minimizedCount: root.minimizedCount
-            viewMode: root.viewMode
-            workspaceOrder: root.workspaceOrder
-            workspaceNameCount: root.workspaceNameCount
-            query: root.query
-            switcherOpen: root.opened
-            countText: WindowModel.viewCountLabel(
-              root.viewMode,
-              root.windowGroups.length,
-              root.filteredWindows.length,
-              root.totalWindowCount,
-              root.activeFilter,
-              root.query,
-              WindowModel.filterLabel(root.activeFilter, root.allWindows))
-            onAllPicked: root.setFilter({ kind: WindowModel.FILTER_ALL })
-            onQueryCleared: root.updateQuery("")
-            onMinimizedToggleRequested: root.toggleMinimizedVisibility()
-            onWorkspaceOrderRequested: function(order) { root.setWorkspaceOrder(order) }
-            onWorkspaceNamesResetRequested: root.resetWorkspaceNames()
-            onWorkspaceToggled: function(workspaceId) { root.toggleWorkspaceFilter(workspaceId) }
-            onWorkspaceCloseRequested: function(workspaceId) { root.closeWorkspaceWindows(workspaceId) }
-            onWindowsViewRequested: root.setViewMode(root.baseViewMode)
-            onWorkspacesViewRequested: root.setViewMode(WindowModel.VIEW_WORKSPACES)
+          anchors.margins: appearance.padding
+          workspaceGroups: root.groups
+          windows: root.windows
+          metrics: appearance.metricsFor(width, root.windows)
+          presentation: appearance
+          selectedIndex: root.selectedIndex
+          switcherOpen: root.opened
+          captureLimit: root.captureLimit
+          onCardActivated: function(index) {
+            root.selectedIndex = index
+            root.commitSelected()
           }
-
-          Text {
-            id: compactContext
-            Layout.fillWidth: true
-            visible: root.compactWorkspace && !workspacePresentation.showHeader
-              && (root.query.length > 0 || root.activeFilter.kind !== WindowModel.FILTER_ALL)
-            textFormat: Text.PlainText
-            text: root.query ? "Search: " + root.query : WindowModel.filterLabel(root.activeFilter, root.allWindows)
-            color: Color.menu.text
-            font.family: Style.font.family
-            font.pixelSize: Style.font.caption
-            elide: Text.ElideRight
-          }
-
-          SwitcherViewArea {
-            id: viewArea
-            presentation: workspacePresentation
-            compact: root.compactWorkspace
-
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            windows: root.filteredWindows
-            groups: root.windowGroups
-            viewMode: root.viewMode
-            selectedIndex: root.selectedIndex
-            focusedWorkspaceId: root.focusedWorkspaceId
-            switcherOpen: root.opened
-            previewMode: root.previewMode
-            captureLimit: root.activeCaptureLimit
-            workspaceNames: root.workspaceNames
-            animationMs: root.animationMs
-            query: root.query
-            activeFilter: root.activeFilter
-            allWindowsCount: root.allWindows.length
-            hiddenMinimizedCount: root.hiddenMinimizedCount
-            // Mapping or reordering cards under a stationary mouse emits hover
-            // events too. Keyboard cycling must keep its MRU selection.
-            onCardHovered: function(index) {
-              if (root.activationMode !== WindowModel.ACTIVATION_RELEASE)
-                root.selectIndex(index)
+          onFrameReady: {
+            if (root.opened && root.firstFrameMs < 0) {
+              root.firstFrameMs = Date.now() - root.openedAt
+              root.noteLifecycle("first-frame")
             }
-            onCardActivated: function(index) {
-              root.selectIndex(index)
-              root.commitSelected()
-            }
-            onCardCloseRequested: function(index) {
-              root.selectIndex(index)
-              root.closeSelectedWindow()
-            }
-            onCardCloseAllRequested: function(index) { root.closeWorkspaceGroup(index) }
-            renamingWorkspaceId: root.renamingWorkspaceId
-            onCardRenameRequested: function(index) { root.beginWorkspaceRename(index) }
-            onCardRenameCommitted: function(workspaceId, name) { root.setWorkspaceName(workspaceId, name) }
-            onCardRenameCancelled: root.cancelWorkspaceRename()
-            onWorkspaceWindowActivated: function(windowIndex) { root.activateWindowAt(windowIndex) }
-            onWorkspaceWindowCloseRequested: function(windowIndex) { root.closeWindowAt(windowIndex) }
-          }
-
-          FooterHints {
-            id: footerHints
-            visible: !root.compactWorkspace || workspacePresentation.showFooter
-            Layout.fillWidth: true
-            activationMode: root.activationMode
-            previewMode: root.previewMode
-            viewMode: root.viewMode
-            minimizedCount: root.minimizedCount
           }
         }
       }

@@ -1,38 +1,17 @@
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
-import "../model/WindowSwitcherModel.js" as WindowModel
-import "../model/EntryMatching.js" as EntryMatching
+import "../model/WorkspaceModel.js" as WorkspaceModel
 
 // Non-visual record builder: turns compositor toplevels into the plain
 // records the model functions operate on.
 QtObject {
   id: records
 
-  property var shell: null
   property var objectKeyRows: []
   property int nextObjectKey: 1
-  readonly property string fallbackIconName: "application-x-executable"
   readonly property string objectKeyPrefix: "object:"
   readonly property string hyprlandKeyPrefix: "hyprland:"
-
-  function desktopEntries() {
-    if (shell && shell.appLibrary && typeof shell.appLibrary.sortedEntries === "function") {
-      var rows = shell.appLibrary.sortedEntries("")
-      var result = []
-      for (var i = 0; i < rows.length; i++) if (rows[i] && rows[i].entry) result.push(rows[i].entry)
-      return result
-    }
-    try { return DesktopEntries.applications.values || [] } catch (error) { return [] }
-  }
-
-  function iconSource(entry, appId) {
-    if (shell && shell.appLibrary && typeof shell.appLibrary.iconSource === "function")
-      return shell.appLibrary.iconSource(entry ? entry.icon : appId)
-    var requested = String(entry && entry.icon ? entry.icon : appId || fallbackIconName)
-    var source = Quickshell.iconPath(requested, true)
-    return source || Quickshell.iconPath(fallbackIconName, true)
-  }
 
   function hyprlandToplevelFor(toplevel) {
     var values = Hyprland.toplevels ? Hyprland.toplevels.values : []
@@ -87,17 +66,14 @@ QtObject {
     }
   }
 
-  function recordFor(toplevel, sourceIndex, entries) {
+  function recordFor(toplevel, sourceIndex) {
     var hyprland = hyprlandToplevelFor(toplevel)
     var ipc = hyprland && hyprland.lastIpcObject ? hyprland.lastIpcObject : {}
-    var at = Array.isArray(ipc.at) ? ipc.at : null
-    var ipcSize = Array.isArray(ipc.size) ? ipc.size : null
-    var appId = String((toplevel && toplevel.appId) || ipc.class || ipc.initialClass || "")
-    var entry = EntryMatching.findDesktopEntry(appId, entries)
+    var at = WorkspaceModel.geometryPair(ipc.at)
+    var ipcSize = WorkspaceModel.geometryPair(ipc.size)
     var workspace = hyprland ? hyprland.workspace : null
     var monitor = hyprland ? hyprland.monitor : null
     var address = String(hyprland && hyprland.address ? hyprland.address : "")
-    var title = String((toplevel && toplevel.title) || (hyprland && hyprland.title) || appId || "Untitled window")
     var workspaceId = workspace ? workspace.id : null
     var workspaceName = workspace ? String(workspace.name || workspace.id || "") : ""
     var monitorId = monitor ? monitor.id : null
@@ -109,13 +85,8 @@ QtObject {
       sourceIndex: focusHistoryId,
       toplevel: toplevel,
       address: address,
-      appId: appId,
-      appName: entry ? String(entry.name || entry.id || appId) : appId,
-      iconSource: iconSource(entry, appId),
-      title: title,
       workspaceId: workspaceId,
       workspaceName: workspaceName,
-      workspaceActive: workspace ? workspace.active === true : false,
       monitorId: monitorId,
       monitorName: monitorName,
       rect: at && ipcSize ? {
@@ -125,12 +96,8 @@ QtObject {
         height: Number(ipcSize[1]) || 0
       } : null,
       monitorRect: monitorRectFor(monitor),
-      active: (toplevel && toplevel.activated === true) || (hyprland && hyprland.activated === true),
-      urgent: hyprland && hyprland.urgent === true,
       minimized: toplevel && toplevel.minimized === true
     }
-    record.contextLabel = WindowModel.workspaceLabel(record)
-    record.workspaceChip = WindowModel.workspaceChipLabel(record)
     return record
   }
 

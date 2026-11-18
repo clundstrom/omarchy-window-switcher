@@ -1,24 +1,8 @@
-// Window snapshot reconciliation. The module keeps capture delegates when only
-// a volatile title changes. It refreshes the records for all other tracked
-// metadata, state, geometry, ordering, or identity changes.
+// Preserve workspace capture delegates unless visible composition or source
+// identity changes. Title, icon and focus-history metadata are not presentation
+// inputs and must not rebuild an otherwise unchanged preview.
 
-var RECORD_FIELDS = [
-  "key",
-  "sourceIndex",
-  "appId",
-  "appName",
-  "iconSource",
-  "workspaceId",
-  "workspaceName",
-  "workspaceActive",
-  "monitorId",
-  "monitorName",
-  "contextLabel",
-  "workspaceChip",
-  "active",
-  "urgent",
-  "minimized"
-]
+var RECORD_FIELDS = ["key", "workspaceId", "workspaceName", "monitorId", "monitorName", "minimized"]
 
 function sameRect(left, right) {
   if (!left && !right) return true

@@ -1,23 +1,17 @@
 #!/bin/bash
-
 set -euo pipefail
-
 PLUGIN_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 OMARCHY_SOURCE=${OMARCHY_PATH:-/usr/share/omarchy}
-
-[[ -d $OMARCHY_SOURCE/shell ]] || {
-  echo "Omarchy shell source not found: $OMARCHY_SOURCE" >&2
-  exit 1
-}
-
+[[ -d $OMARCHY_SOURCE/shell ]] || { echo "Omarchy shell source not found: $OMARCHY_SOURCE" >&2; exit 1; }
 for test_file in "$PLUGIN_DIR"/test/*.test.js; do
   node "$test_file"
 done
-
 OMARCHY_PATH="$OMARCHY_SOURCE" omarchy plugin validate "$PLUGIN_DIR"
-
-qmllint -I "$OMARCHY_SOURCE/shell" \
-  "$PLUGIN_DIR/Switcher.qml" \
-  "$PLUGIN_DIR"/components/*.qml
-
-echo "ok - window switcher manifest and QML"
+qml_lint=$(command -v qmllint || true)
+[[ -n $qml_lint ]] || qml_lint=/usr/lib/qt6/bin/qmllint
+[[ -x $qml_lint ]] || { echo 'Qt 6 qmllint is not installed' >&2; exit 1; }
+imports=$(mktemp -d)
+trap 'rm -rf -- "$imports"' EXIT
+ln -s "$OMARCHY_SOURCE/shell" "$imports/qs"
+"$qml_lint" -I "$imports" "$PLUGIN_DIR/Switcher.qml" "$PLUGIN_DIR"/components/*.qml
+echo 'ok - workspace switcher manifest and QML'

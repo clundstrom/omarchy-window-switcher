@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "id": "community.window-switcher",
-  "name": "Window Switcher",
-  "version": "1.0.0",
+  "name": "Workspace Switcher",
+  "version": "2.0.0",
   "author": "Omarchy Window Switcher contributors",
-  "description": "Keyboard-first MRU window switching with search and Wayland previews",
+  "description": "Compact MRU workspace switching with native Wayland previews",
   "license": "MIT",
   "kinds": [
     "overlay"

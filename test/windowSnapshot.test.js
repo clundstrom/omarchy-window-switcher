@@ -1,79 +1,61 @@
 const assert = require('node:assert/strict')
 const snapshot = require('../model/WindowSnapshot.js')
 
-const toplevel = {}
 const current = {
   key: 'hyprland:0x1',
-  sourceIndex: 0,
-  toplevel,
-  appId: 'org.example.App',
-  appName: 'Example',
-  iconSource: 'image://icon/example',
-  title: 'Old title',
+  toplevel: {},
   workspaceId: 1,
   workspaceName: '1',
-  workspaceActive: true,
   monitorId: 0,
   monitorName: 'DP-1',
-  contextLabel: '1 · DP-1',
-  workspaceChip: '1',
-  active: true,
-  urgent: false,
   minimized: false,
-  rect: { x: 0, y: 0, width: 100, height: 100 },
+  rect: { x: 0, y: 0, width: 960, height: 1080 },
   monitorRect: { x: 0, y: 0, width: 1920, height: 1080 }
 }
-
-function candidate(changes) {
-  return Object.assign({}, current, {
-    rect: Object.assign({}, current.rect),
-    monitorRect: Object.assign({}, current.monitorRect)
-  }, changes || {})
+function candidate(changes = {}) {
+  return {
+    ...current,
+    rect: { ...current.rect },
+    monitorRect: { ...current.monitorRect },
+    ...changes
+  }
 }
 
-const titleOnly = candidate({ title: 'New title' })
-const reused = snapshot.reconcile([current], [titleOnly])
-assert.equal(reused.changed, false, 'a title-only change preserves capture delegates')
-assert.equal(reused.records[0], current, 'the preserved snapshot keeps existing record references')
-
-for (const [field, value] of [
-  ['key', 'hyprland:0x2'],
-  ['sourceIndex', 1],
-  ['appId', 'org.example.Replacement'],
-  ['workspaceName', 'renamed'],
-  ['workspaceId', 2],
-  ['workspaceActive', false],
-  ['monitorId', 1],
-  ['monitorName', 'DP-2'],
-  ['appName', 'Renamed application'],
-  ['iconSource', 'image://icon/replacement'],
-  ['contextLabel', '2 · DP-2'],
-  ['workspaceChip', '2'],
-  ['active', false],
-  ['urgent', true],
-  ['minimized', true]
+for (const changes of [
+  {},
+  { title: 'A terminal progress title' },
+  { sourceIndex: 7, focusHistoryID: 7 },
+  { active: false, urgent: true, iconSource: 'unused', appName: 'unused' }
 ]) {
-  const next = candidate({ [field]: value })
+  const reused = snapshot.reconcile([current], [candidate(changes)])
+  assert.equal(reused.changed, false, 'non-visual metadata does not destroy capture delegates')
+  assert.equal(reused.records[0], current)
+}
+
+for (const changes of [
+  { key: 'hyprland:0x2' },
+  { toplevel: {} },
+  { workspaceId: 2 },
+  { workspaceName: 'Development' },
+  { monitorId: 1 },
+  { monitorName: 'DP-2' },
+  { minimized: true },
+  { rect: { ...current.rect, x: -320 } },
+  { rect: { ...current.rect, width: 640 } },
+  { rect: null },
+  { monitorRect: { ...current.monitorRect, x: 1920 } },
+  { monitorRect: { ...current.monitorRect, width: 2560 } },
+  { monitorRect: null }
+]) {
+  const next = candidate(changes)
   const result = snapshot.reconcile([current], [next])
-  assert.equal(result.changed, true, `${field} refreshes the snapshot`)
+  assert.equal(result.changed, true, `${Object.keys(changes)[0]} invalidates stale preview state`)
   assert.equal(result.records[0], next)
 }
-
-const moved = candidate({ rect: { x: 20, y: 0, width: 100, height: 100 } })
-assert.equal(snapshot.reconcile([current], [moved]).changed, true,
-  'window geometry refreshes the snapshot')
-
-const monitorChanged = candidate({
-  monitorRect: { x: 0, y: 0, width: 2560, height: 1440 }
-})
-assert.equal(snapshot.reconcile([current], [monitorChanged]).changed, true,
-  'monitor geometry refreshes the snapshot')
-
-const replaced = candidate({ toplevel: {} })
-assert.equal(snapshot.reconcile([current], [replaced]).changed, true,
-  'a different toplevel refreshes the snapshot')
-
-assert.equal(snapshot.reconcile([current], []).changed, true,
-  'a different record count refreshes the snapshot')
-
-console.log('ok - window snapshot')
+assert.equal(snapshot.reconcile([current], []).changed, true, 'a closed source is removed')
+assert.equal(snapshot.reconcile([], [current]).changed, true, 'a newly opened source is added')
+const other = candidate({ key: 'hyprland:0x2', toplevel: {} })
+assert.equal(snapshot.reconcile([current, other], [other, current]).changed, true,
+  'changed stacking/order invalidates the snapshot')
+assert.deepEqual(snapshot.reconcile([], []), { records: [], changed: false })
+console.log('ok - workspace snapshots')
