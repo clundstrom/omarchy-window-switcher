@@ -99,7 +99,42 @@ The fatal right-click gesture was not deliberately repeated. The crash stack
 points into Hyprland's Lua resize dispatcher; its underlying cause remains
 unconfirmed.
 
-### Opening-time profile
+### Rust migration validation and comparison
+
+The Rust core passed 16 unit tests, five Qt bridge checks, 230 comparisons
+against the previous JavaScript implementation and all seven offscreen layout
+cases. The manifest, interface checks, Rust formatting and Clippy checks also
+passed. A full panel cannot be exercised with Quickshell's offscreen backend,
+so the installed version was checked in the live desktop session as well.
+Its actual previews were inspected using an in-memory screen capture. Forward
+and reverse navigation, frozen ordering, modifier-release activation,
+compositor global-shortcut delivery, capture cleanup and shortcut-guard cleanup
+passed. The loaded native library was confirmed to come from the installed
+plugin folder. Local keyboard bindings and the normal renderer were retained.
+
+A fresh comparison measured 20 warm openings of each implementation with four
+tracked windows and three regular workspaces displayed. The JavaScript version
+was measured immediately before installing Rust in the same desktop session.
+Each opening used explicit activation, waited 250 ms before reading status,
+then closed and waited 120 ms before the next opening. Neither run switched
+away from the original workspace.
+
+| Measurement | JavaScript | Rust |
+|---|---:|---:|
+| Median opening logic | 1 ms | 1 ms |
+| Median first-preview arrival | 36 ms | 35 ms |
+| First-preview arrival, 95th percentile | 41 ms | 38 ms |
+| First-preview arrival, observed range | 33–51 ms | 32–61 ms |
+
+These measurements start inside the opening function and end when a native
+preview reports content. They exclude shortcut delivery, final display
+presentation and cold shell startup. Timing resolution is one millisecond.
+The results do not demonstrate a meaningful speed improvement. Native renderer
+startup remains the main delay. The Rust implementation is an architectural
+change, with the existing interface and preview lifecycle preserved. Higher
+window counts and other workloads need their own measurements.
+
+### Opening-time profile before the Rust migration
 
 On 18 November 2026, a live timing profile compared 20 openings before and
 20 openings after starting the first capture batch immediately. The session
