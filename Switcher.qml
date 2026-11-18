@@ -29,6 +29,7 @@ Item {
   property bool releaseArmed: false
   property bool releaseActivation: true
   property bool modifierTrackingSeen: false
+  property bool opaqueBackground: false
   property double openedAt: 0
   property int firstFrameMs: -1
   property int openWorkMs: 0
@@ -121,11 +122,7 @@ Item {
     return screens.length ? screens[0] : null
   }
   function revealSelected() {
-    Qt.callLater(function() {
-      if (!root.opened || root.selectedIndex < 0) return
-      workspaceView.forceLayout()
-      workspaceView.positionViewAtIndex(root.selectedIndex, GridView.Contain)
-    })
+    Qt.callLater(workspaceView.revealSelection)
   }
   function step(direction) {
     selectedIndex = workspaceCore.step(selectedIndex, direction, groups.length)
@@ -171,6 +168,7 @@ Item {
     openedAt = started
     firstFrameMs = -1
     opened = true
+    appearance.prepareOpen()
     rebuildWindows(direction)
     surfaceVisible = true
     Hyprland.refreshToplevels()
@@ -200,6 +198,19 @@ Item {
   }
   // Host lifecycle cleanup, independent of user-facing activation controls.
   function close() { beginClose(originalToplevel) }
+  function toggleTransparency(unused) {
+    if (!opened) return "ignored"
+    opaqueBackground = !opaqueBackground
+    return "handled"
+  }
+  function setPreviewWidth(value) {
+    var width = Number(String(value).trim())
+    if (!isFinite(width) || width <= 0) return "invalid width"
+    var settings = JSON.parse(JSON.stringify(appearance.settings))
+    settings.thumbnailWidth = Math.max(160, Math.min(960, width))
+    appearance.settings = settings
+    return String(settings.thumbnailWidth)
+  }
   function ping() { return "ok" }
   function status() {
     return JSON.stringify({ opened: opened, surfaceVisible: surfaceVisible,
@@ -210,7 +221,8 @@ Item {
       focusedWorkspaceId: focusedWorkspaceId, targetScreen: targetScreen ? targetScreen.name : "",
       captureLimit: captureLimit, captureBudget: captureBudget, openWorkMs: openWorkMs, firstFrameMs: firstFrameMs,
       keyFocus: keySurface.activeFocus, releaseArmed: releaseArmed, releaseActivation: releaseActivation,
-      shortcutsInhibited: gestureGuard.active,
+      shortcutsInhibited: gestureGuard.active, backgroundOpaque: opaqueBackground,
+      previewWidth: appearance.thumbnailWidth, wallpaperReady: appearance.wallpaperPreload.status === Image.Ready,
       modifierTrackingSeen: modifierTrackingSeen, globalModifierHeld: leftModifier.pressed || rightModifier.pressed,
       lifecycleEvents: lifecycleEvents })
   }
@@ -329,25 +341,32 @@ Item {
       releaseArmed: root.releaseArmed
       releaseActivation: root.releaseActivation
       onStepped: function(direction) { root.step(direction) }
-      onModifierReleased: root.commitSelected()
+      onModifierReleased: root.finishModifierRelease()
+      onTransparencyToggled: root.toggleTransparency("")
+      Rectangle {
+        anchors.fill: parent
+        color: Commons.Util.alpha(Commons.Color.background,
+          root.opaqueBackground ? 1 : appearance.backgroundOpacity * Commons.Color.background.a)
+      }
       Rectangle {
         id: strip
         anchors.centerIn: parent
+        readonly property var preferredMetrics: appearance.metricsFor(
+          parent.width - Commons.Style.space(48) - appearance.padding * 2, root.windows,
+          parent.height - Commons.Style.space(48) - appearance.padding * 2)
         width: Math.min(parent.width - Commons.Style.space(48),
           Math.max(1, Math.min(appearance.maxVisible, root.groups.length))
-            * (appearance.thumbnailWidth + appearance.spacing) + appearance.padding * 2)
+            * (preferredMetrics.cardWidth + appearance.spacing) + appearance.padding * 2)
         height: workspaceView.metrics.cardHeight + appearance.padding * 2
         radius: appearance.cornerRadius
-        color: Commons.Util.alpha(Commons.Color.menu.background, Commons.Color.menu.background.a * appearance.backgroundOpacity)
-        border.width: 1
-        border.color: Commons.Util.alpha(Commons.Color.menu.border, 0.28)
+        color: "transparent"
         WorkspaceGridView {
           id: workspaceView
           anchors.fill: parent
           anchors.margins: appearance.padding
           workspaceGroups: root.groups
           windows: root.windows
-          metrics: appearance.metricsFor(width, root.windows)
+          metrics: appearance.metricsFor(width, root.windows, panel.height - Commons.Style.space(48) - appearance.padding * 2)
           presentation: appearance
           selectedIndex: root.selectedIndex
           switcherOpen: root.opened

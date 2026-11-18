@@ -1,23 +1,38 @@
 import QtQuick
+import Quickshell
 import Quickshell.Io
 import qs.Commons as Commons
 
-// Presentation settings are local to the plugin: no dependency on the host's
-// private shellConfig API, and no change to switching or invocation options.
 QtObject {
   id: presentation
 
   property var settings: ({})
-  readonly property int thumbnailWidth: Commons.Style.space(number("thumbnailWidth", 264, 160, 400))
+  readonly property int thumbnailWidth: Commons.Style.space(number("thumbnailWidth", 400, 160, 960))
   readonly property int maxVisible: number("maxVisible", 5, 1, 8)
-  readonly property int spacing: Commons.Style.space(number("spacing", 12, 4, 32))
-  readonly property int padding: Commons.Style.space(number("padding", 16, 8, 40))
-  readonly property int cornerRadius: Commons.Style.space(number("cornerRadius", 16, 0, 32))
-  readonly property int labelHeight: Commons.Style.space(32)
-  readonly property int previewInset: Commons.Style.space(4)
-  readonly property real backgroundOpacity: number("backgroundOpacity", 0.96, 0.5, 1)
+  readonly property int spacing: Commons.Style.space(number("spacing", 28, 4, 64))
+  readonly property int padding: Commons.Style.space(number("padding", 24, 8, 48))
+  readonly property int cornerRadius: Commons.Style.space(number("cornerRadius", 0, 0, 32))
+  readonly property int labelHeight: Commons.Style.space(36)
+  readonly property int previewInset: Commons.Style.space(2)
+  readonly property real backgroundOpacity: number("backgroundOpacity", 0.38, 0, 1)
+  readonly property bool showWallpaper: typeof settings.showWallpaper === "boolean" ? settings.showWallpaper : true
+  property string backgroundPath: Quickshell.env("HOME") + "/.local/state/omarchy/current/background"
+  property int wallpaperVersion: 0
+  readonly property url wallpaperSource: showWallpaper
+    ? Commons.Util.fileUrl(backgroundPath) + "?switcher=" + wallpaperVersion : ""
+  property url sessionWallpaper: ""
 
-  function metricsFor(availableWidth, windows) {
+  function prepareOpen() {
+    // Freeze an already decoded image for this opening. A slow wallpaper must
+    // not delay the switcher or appear halfway through an interaction.
+    sessionWallpaper = wallpaperPreload.status === Image.Ready ? wallpaperSource : ""
+  }
+  function number(key, fallback, low, high) {
+    var value = settings[key]
+    return typeof value === "number" && isFinite(value)
+      ? Math.max(low, Math.min(high, value)) : fallback
+  }
+  function metricsFor(availableWidth, windows, availableHeight) {
     var aspect = 0
     for (var i = 0; i < windows.length; i++) {
       var rect = windows[i] && windows[i].monitorRect
@@ -27,17 +42,30 @@ QtObject {
       }
     }
     if (!(aspect > 0)) aspect = 16 / 9
-    var cardWidth = Math.max(previewInset * 2 + 1, Math.min(thumbnailWidth, availableWidth - spacing))
+    var heightLimit = typeof availableHeight === "number" && availableHeight > 0 ? availableHeight : Infinity
+    var widthFromHeight = Math.max(1, heightLimit - labelHeight - previewInset * 2) * aspect + previewInset * 2
+    var cardWidth = Math.max(previewInset * 2 + 1,
+      Math.min(thumbnailWidth, availableWidth - spacing, widthFromHeight))
     var cardHeight = (cardWidth - previewInset * 2) / aspect + labelHeight + previewInset * 2
     return { cardWidth: cardWidth, cardHeight: cardHeight, cellWidth: cardWidth + spacing, cellHeight: cardHeight }
   }
 
-  function number(key, fallback, low, high) {
-    var value = settings[key]
-    return typeof value === "number" && isFinite(value)
-      ? Math.max(low, Math.min(high, value)) : fallback
+  // This is the existing wallpaper file, decoded once in memory. FileView
+  // watches it without loading its binary contents or creating another file.
+  property Image wallpaperPreload: Image {
+    source: presentation.wallpaperSource
+    sourceSize.width: presentation.thumbnailWidth * 2
+    asynchronous: true
+    cache: true
+    visible: false
   }
-
+  property FileView wallpaperWatcher: FileView {
+    path: presentation.backgroundPath
+    preload: false
+    watchChanges: true
+    printErrors: false
+    onFileChanged: presentation.wallpaperVersion++
+  }
   property FileView configFile: FileView {
     path: Qt.resolvedUrl("../compact.json")
     watchChanges: true
@@ -48,7 +76,7 @@ QtObject {
         let value = JSON.parse(text())
         presentation.settings = value && typeof value === "object" && !Array.isArray(value) ? value : ({})
       } catch (error) {
-        console.warn("Window switcher: invalid compact.json, using presentation defaults")
+        console.warn("Workspace switcher: invalid compact.json, using presentation defaults")
         presentation.settings = ({})
       }
     }

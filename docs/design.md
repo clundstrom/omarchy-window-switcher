@@ -13,7 +13,7 @@ are outside this fork's scope.
 surface. `WindowRecords.qml` reads the compositor's window and monitor data;
 `CompositorSignals.qml` handles changes. `WorkspaceGridView.qml` schedules the
 horizontal strip and `WorkspaceCard.qml` composes native window captures.
-`WorkspacePresentation.qml` reads the six bounded visual settings from
+`WorkspacePresentation.qml` reads the bounded visual settings from
 `compact.json`. The Rust core in `rust/src/core.rs` handles history, ordering,
 navigation, geometry and preview-change detection. `native/coreplugin.cpp` is
 a thin Qt adapter, using generated CXX bindings to call Rust. Window objects
@@ -32,6 +32,41 @@ open/cycle the switcher without spawning a shell command. Separate modifier
 trackers cover releases that occur before the layer receives keyboard focus;
 the in-popup key surface also handles release. Workspace selection and
 activation are keyboard-driven.
+
+### Presentation
+
+Flat previews sit in a horizontal row over a theme-coloured desktop backdrop.
+Only the workspace number and a small selected dot appear below each preview.
+The selected border uses the theme's image-picker selection colour. Nothing
+fades or scales during opening or navigation.
+
+`thumbnailWidth` in `compact.json` controls preview width from 160 to 960 logical
+pixels before shell scaling. Native monitor proportions determine the height.
+The layout also limits width by the available screen height, so a large setting
+cannot make the preview taller than a smaller monitor. Scrolling follows the
+selection using the plain workspace array and cell dimensions. It does not
+query Qt's native model getter during position updates.
+
+`setPreviewWidth` changes the width through the existing shell call interface
+without reloading the plugin or changing its history. It is temporary. Editing
+`compact.json` preserves the setting across restarts, but Omarchy may reload the
+plugin when it notices a file change. The remaining settings control visible
+card count, spacing, padding, border rounding, backdrop opacity and wallpaper
+visibility.
+
+An asynchronous image component preloads Omarchy's current wallpaper from its
+existing file. A file watcher invalidates that image when the wallpaper changes.
+Opening uses an already decoded image or the theme background for the entire
+interaction, so a slow image cannot delay opening or pop in afterwards.
+This is an in-memory wallpaper image, not a cache of workspace captures.
+Unsupported formats, including video wallpapers, use the theme background.
+
+Super+Backspace toggles the backdrop between its configured transparency and an
+opaque theme background. Omarchy's stock window-opacity command targets regular
+windows and cannot target this layer surface. The focused key surface handles
+the same chord while the overlay is open, leaving the desktop binding unchanged.
+Releasing a secondary modifier while the switching modifier is held does not
+activate a workspace. The opacity choice is retained until the plugin reloads.
 
 ### Desktop shortcuts
 
@@ -91,6 +126,25 @@ The offscreen test also covers empty/shrinking workspace lists and closing
 capture sources. Capture scheduling reads a plain input array rather than
 `GridView.model`: reading Qt's model getter from a content-position binding
 during model replacement caused a reproducible native crash in the test.
+
+The flat presentation passes eight offscreen layout cases, including 5120×1440,
+ordinary 16:9 sizes, overflow and a maximum-width preview on a 960×540 display.
+Input tests cover forward/reverse cycling, the opacity chord, excluded
+Backspace combinations and secondary-modifier release handling. These automated
+checks do not establish compositor capture or physical shortcut behaviour.
+
+The installed flat presentation was also inspected in the unlocked desktop
+using in-memory screen captures. Native previews, the selected border and dot,
+numeric labels and selection-following overflow were visible at widths of 400
+and 600 pixels. Live checks resized the open overlay through 400, 600 and 960
+pixels without changing its opening order. Forward/reverse Tab, native global
+shortcut delivery and both opacity states passed. A held-modifier test checked
+that releasing the extra opacity modifier kept the overlay open, then releasing
+the switching modifier activated the current workspace and released captures
+and inhibition. This test used virtual input for the focused key surface;
+physical opening-shortcut delivery was not remeasured. Normal desktop bindings
+were left unchanged. Numbers use the same subtle theme-coloured outline as
+Omarchy's image picker to stay readable over bright content.
 
 The scoped gesture guard was checked in the live session: inhibition became
 active with popup focus, Tab cycled selection, and closing released inhibition
@@ -252,6 +306,15 @@ retain compiled components after a plugin rescan. Files in the user plugin
 directory survive ordinary configuration reloads.
 
 ## Rollback
+
+To restore the Rust implementation's earlier compact appearance, use commit
+`1590d15` and restart the shell. Keep any uncommitted settings before changing
+versions. This checkpoint uses the same native module and bindings.
+
+```bash
+git -C ~/.config/omarchy/plugins/community.window-switcher switch --detach 1590d15
+omarchy restart shell
+```
 
 To return to the working JavaScript version, switch the installed checkout to
 commit `4538d70` and restart the shell. Both versions use the same

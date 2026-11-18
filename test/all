@@ -6,7 +6,9 @@ OMARCHY_SOURCE=${OMARCHY_PATH:-/usr/share/omarchy}
 "$PLUGIN_DIR/bin/cargo-tool" test --manifest-path "$PLUGIN_DIR/rust/Cargo.toml" --locked
 "$PLUGIN_DIR/bin/build"
 node "$PLUGIN_DIR/test/contract.test.js"
-QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -input "$PLUGIN_DIR/test/tst_native.qml"
+for qml_test in "$PLUGIN_DIR"/test/tst_*.qml; do
+  QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -input "$qml_test"
+done
 OMARCHY_PATH="$OMARCHY_SOURCE" omarchy plugin validate "$PLUGIN_DIR"
 qml_lint=$(command -v qmllint || true)
 [[ -n $qml_lint ]] || qml_lint=/usr/lib/qt6/bin/qmllint

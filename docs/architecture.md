@@ -74,7 +74,9 @@ cross into Rust. The existing interface retains those handles and their lifetime
 `WorkspaceCard.qml` places a native `ScreencopyView` at each window's position in
 the miniature workspace. The preview canvas clips content outside the monitor,
 so floating and scrolling layouts keep their reported geometry. Qt Quick draws
-those images together with the card border, selection marker and label.
+those images over the current wallpaper, together with the card border,
+workspace number and selected dot. The wallpaper is loaded from Omarchy's
+existing file and warmed in memory before opening; Rust never receives it.
 
 The following sequence describes the tested default threaded OpenGL renderer.
 Other Qt rendering modes can use a different threading arrangement.
@@ -96,8 +98,10 @@ sequenceDiagram
     Hyprland->>Display: Composite the desktop and overlay
 ```
 
-The layer window covers the focused monitor with a transparent background.
-Only the switcher content is drawn in the centre. It reserves no desktop space.
+The layer window covers the focused monitor with a theme-coloured backdrop.
+The preview row is centred over it and reserves no desktop space. The backdrop
+can be translucent or opaque; the focused key surface handles Super+Backspace
+to change it without targeting a regular desktop window.
 Keyboard focus and a shortcut inhibitor belong to the overlay while it is open.
 The inhibitor prevents desktop gestures from acting on windows behind it.
 
@@ -119,10 +123,10 @@ records and capture delegates used by the open overlay are cleared.
 | [`Switcher.qml`](../Switcher.qml) | Session history state, selected workspace, opening and closing, native shortcuts, layer window and capture scheduling. |
 | [`CompositorSignals.qml`](../components/CompositorSignals.qml) | Window, workspace and monitor notifications, including the geometry-reply notification. |
 | [`WindowRecords.qml`](../components/WindowRecords.qml) | Associates native window handles with metadata and stable source tokens. |
-| [`SwitcherKeySurface.qml`](../components/SwitcherKeySurface.qml) | Keyboard events inside the overlay. |
+| [`SwitcherKeySurface.qml`](../components/SwitcherKeySurface.qml) | Cycling, modifier release and the opacity shortcut inside the overlay. |
 | [`WorkspaceGridView.qml`](../components/WorkspaceGridView.qml) | Horizontal layout, scrolling, selection visibility and capture priority. |
-| [`WorkspaceCard.qml`](../components/WorkspaceCard.qml) | Composes native window images at Rust-calculated positions and draws the workspace label and selection. |
-| [`WorkspacePresentation.qml`](../components/WorkspacePresentation.qml) and [`compact.json`](../compact.json) | Bounded appearance settings, display proportions and shared theme values. |
+| [`WorkspaceCard.qml`](../components/WorkspaceCard.qml) | Composes wallpaper and native window images at Rust-calculated positions, with a workspace number and selection marker. |
+| [`WorkspacePresentation.qml`](../components/WorkspacePresentation.qml) and [`compact.json`](../compact.json) | Bounded appearance settings, display proportions, wallpaper preloading and file watching. |
 | [`WorkspaceCore.qml`](../native/WorkspaceCore.qml) and [`coreplugin.cpp`](../native/coreplugin.cpp) | Expose the compiled core as a Qt object. CXX generates the bridge between C++ and Rust. |
 | [`lib.rs`](../rust/src/lib.rs) | Parses and bounds metadata, routes operations and reports invalid input. |
 | [`core.rs`](../rust/src/core.rs) | Stateless history, ordering, navigation, grouping, geometry and preview-change calculations. |

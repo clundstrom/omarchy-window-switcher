@@ -11,7 +11,7 @@ Window {
   visible: true
   property int stage: 0
   property int failures: 0
-  property var cases: [[5120,1440,1],[5120,1440,12],[1920,1080,5],[1280,720,12],[960,540,12],[1920,1080,1],[1920,1080,0]]
+  property var cases: [[5120,1440,1],[5120,1440,12],[1920,1080,5],[1280,720,12],[960,540,12],[1920,1080,1],[1920,1080,0],[960,540,1,960]]
   Plugin.WorkspacePresentation { id: style }
   Plugin.WorkspaceGridView {
     id: grid
@@ -20,7 +20,7 @@ Window {
     presentation: style
     width: Math.min(test.width - 48, Math.max(1, Math.min(style.maxVisible, count)) * (style.thumbnailWidth + style.spacing))
     height: metrics.cardHeight
-    metrics: style.metricsFor(width, windows)
+    metrics: style.metricsFor(width, windows, test.height - 48 - style.padding * 2)
     selectedIndex: count - 1
     switcherOpen: true
     captureLimit: 0
@@ -42,9 +42,9 @@ Window {
     check(style.thumbnailWidth === Commons.Style.space(160), "card width lower bound")
     check(style.maxVisible === 8, "visible card upper bound")
     check(style.spacing === Commons.Style.space(4), "spacing lower bound")
-    check(style.padding === Commons.Style.space(40), "padding upper bound")
+    check(style.padding === Commons.Style.space(48), "padding upper bound")
     check(style.cornerRadius === Commons.Style.space(32), "radius upper bound")
-    check(style.backgroundOpacity === 0.5, "opacity lower bound")
+    check(style.backgroundOpacity === 0, "opacity lower bound")
     style.settings = original
   }
   Timer {
@@ -61,6 +61,7 @@ Window {
         }
         var c = test.cases[test.stage / 2]
         test.width = c[0]; test.height = c[1]
+        if (c.length > 3) style.settings = { thumbnailWidth: c[3] }
         var windows = []; var groups = []
         for (var i = 0; i < c[2]; i++) {
           windows.push({monitorRect: {x:0,y:0,width:c[0],height:c[1]}, rect:{x:0,y:0,width:c[0],height:c[1]}, workspaceId:i+1, toplevel:null, minimized:false})
@@ -68,8 +69,7 @@ Window {
         }
         grid.windows = windows; grid.workspaceGroups = groups
         Qt.callLater(function() {
-          grid.forceLayout()
-          grid.positionViewAtIndex(grid.selectedIndex, GridView.Contain)
+          grid.revealSelection()
         })
       } else {
         test.check(grid.flow === GridView.FlowTopToBottom, "horizontal flow")

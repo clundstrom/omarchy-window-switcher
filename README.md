@@ -1,7 +1,7 @@
 # Omarchy Workspace Switcher
 
 Workspace Switcher lets you move between your recently used workspaces in
-Omarchy. Hold Alt and press Tab to open a small strip of workspace previews
+Omarchy. Hold Alt and press Tab to open a row of workspace previews
 in the centre of the focused monitor. Keep pressing Tab to move through them,
 then release Alt to switch to the highlighted workspace.
 
@@ -10,13 +10,23 @@ layout calculations. It keeps the existing Qt interface and window capture
 components. A small compiled module connects them, without running a separate
 background program.
 
-![Workspace Switcher showing four workspace previews, with Workspace 1 selected](docs/images/workspace-switcher.png)
+The interface shows flat previews over a dimmed desktop. Each preview has a
+workspace number underneath it. A thin theme-coloured border and a small dot
+mark the selected workspace. There are no titles, instructions or extra controls.
+
+<details>
+<summary>Screenshot of the earlier compact appearance</summary>
+
+![Earlier compact Workspace Switcher appearance](docs/images/workspace-switcher.png)
+
+</details>
 
 Each preview uses images of the workspace's windows and the layout reported by
 Hyprland. This includes tiled and floating windows. Windows that extend beyond
 the screen, such as those in a scrolling layout, are clipped at the preview's
 edge. Previews keep the screen's proportions and use colours from your Omarchy
 theme. They are captured when needed rather than streamed in the background.
+The current Omarchy wallpaper fills the spaces between windows when available.
 
 The strip adapts to the monitor's size and scrolls to keep the selected
 workspace in view. It opens without a fade animation. Only regular workspaces
@@ -68,6 +78,12 @@ desktop shortcuts and mouse gestures are blocked to prevent them from acting
 on windows behind it. The switcher's own shortcuts remain available, and normal
 desktop controls return as soon as it closes.
 
+While the switcher is open, Super+Backspace toggles its backdrop between the
+configured transparency and an opaque theme background. This handles the usual
+opacity shortcut inside the overlay. Outside the switcher, Omarchy's normal
+window opacity command works as before. The backdrop choice lasts until the
+plugin is reloaded.
+
 ## Appearance
 
 Edit `compact.json` in the plugin directory to change the appearance. The default
@@ -75,22 +91,36 @@ settings are:
 
 ```json
 {
-  "thumbnailWidth": 264,
+  "thumbnailWidth": 400,
   "maxVisible": 5,
-  "spacing": 12,
-  "padding": 16,
-  "cornerRadius": 16,
-  "backgroundOpacity": 0.96
+  "spacing": 28,
+  "padding": 24,
+  "cornerRadius": 0,
+  "backgroundOpacity": 0.38,
+  "showWallpaper": true
 }
 ```
 
-`thumbnailWidth` sets the width of each card, and `maxVisible` limits how many
-cards fit in the strip at once. `spacing` controls the gap between cards,
+`thumbnailWidth` sets the preview width from 160 to 960 logical pixels before
+the shell's interface scaling. Height follows the monitor's proportions.
+Previews shrink when necessary to fit the available screen width or height.
+`maxVisible` limits how many cards fit in the row at once. `spacing` controls the gap between cards,
 `padding` controls the space around them, and `cornerRadius` sets how rounded
-the panel is. These dimensions follow the shell's scaling and are limited by
-the available screen space. `backgroundOpacity` controls how opaque the panel
-is, combined with the current theme's transparency. Changes to this file are
-loaded automatically.
+the preview borders are. `backgroundOpacity` controls how opaque the desktop
+backdrop is, combined with the current theme's transparency. `showWallpaper`
+controls the wallpaper inside previews. An unavailable or unsupported wallpaper
+falls back to the theme background.
+
+Changes to this file are loaded automatically. Omarchy may reload the plugin
+when its files change, so save settings between switching sessions. To try a
+different size while the switcher is open, run:
+
+```bash
+omarchy-shell shell call community.window-switcher setPreviewWidth 600
+```
+
+This command changes the size for the current plugin session. Save your preferred
+width in `compact.json` to keep it after a restart.
 
 ## Architecture
 
@@ -128,3 +158,6 @@ Workspace Switcher is a focused fork of
 It builds on the original workspace history, window information and preview
 components. The original copyright and license notices are preserved in
 [LICENSE](LICENSE).
+
+The flat preview layout takes visual inspiration from
+[Woogy7's workspace switcher](https://github.com/Woogy7/omarchy-workspace-switcher).

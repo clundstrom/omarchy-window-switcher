@@ -1,8 +1,9 @@
 {
-  "thumbnailWidth": 264,
+  "thumbnailWidth": 400,
   "maxVisible": 5,
-  "spacing": 12,
-  "padding": 16,
-  "cornerRadius": 16,
-  "backgroundOpacity": 0.96
+  "spacing": 28,
+  "padding": 24,
+  "cornerRadius": 0,
+  "backgroundOpacity": 0.38,
+  "showWallpaper": true
 }

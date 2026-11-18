@@ -23,8 +23,8 @@ for (const name of ['next-workspace', 'previous-workspace', 'modifier-left', 'mo
 for (const key of ['Qt.Key_Tab', 'Qt.Key_Backtab']) {
   assert.ok(keys.includes(key), `${key} remains available`)
 }
-assert.doesNotMatch(keys, /Qt\.Key_(?:Escape|Return|Enter|F2|Delete|[0-9])\b|Qt\.ControlModifier/,
-  'the key surface contains only workspace switching controls')
+assert.doesNotMatch(keys, /Qt\.Key_(?:Escape|Return|Enter|F2|Delete|[0-9])\b/,
+  'removed navigation and cancellation controls stay removed')
 assert.doesNotMatch(switcher, /onCancelled:|onCommitted:|onClicked:\s*root\.cancel\(/,
   'Enter, Escape and outside-click controls are removed')
 assert.match(card, /ScreencopyView\s*\{/, 'previews use native compositor capture')
@@ -62,4 +62,10 @@ assert.match(switcher, /ShortcutInhibitor\s*\{[\s\S]*?enabled:\s*root\.opened/,
   'desktop gestures are inhibited only during the workspace interaction')
 assert.equal((read('docs/bindings.lua').match(/dont_inhibit = true/g) || []).length, 4,
   'all four native switcher bindings remain usable during inhibition')
+assert.match(keys, /Qt\.Key_Backspace[\s\S]*Qt\.MetaModifier/,
+  'the focused overlay handles the standard opacity shortcut')
+assert.match(switcher, /onModifierReleased:\s*root\.finishModifierRelease\(\)/,
+  'secondary modifier release cannot commit while the workspace modifier remains held')
+assert.match(card, /String\(card\.groupData\.id\)/,
+  'workspace captions contain only the workspace number')
 console.log('ok - workspace plugin boundaries')

@@ -3,7 +3,7 @@ import Quickshell.Wayland
 import qs.Commons as Commons
 import "../native" as Native
 
-// The original native workspace composition, with one label and one border.
+// Native window composition with a flat frame and a quiet numeric label.
 Rectangle {
   id: card
   required property var groupData
@@ -30,33 +30,33 @@ Rectangle {
     }
     return 16 / 9
   }
-  radius: Math.max(0, presentation.cornerRadius - presentation.previewInset)
-  color: selected ? Commons.Util.alpha(Commons.Color.accent, 0.09) : "transparent"
-  border.width: 1
-  border.color: selected ? Commons.Color.accent : "transparent"
+  color: "transparent"
 
   Item {
     id: previewFrame
-    anchors { top: parent.top; left: parent.left; right: parent.right; bottom: label.top }
-    anchors.margins: card.presentation.previewInset
+    anchors { top: parent.top; left: parent.left; right: parent.right; bottom: labelRow.top }
     clip: true
 
     Rectangle {
       anchors.fill: parent
-      color: Qt.darker(Commons.Color.menu.background, 1.18)
+      color: Commons.Color.background
     }
     Item {
       id: workspaceSurface
       clip: true
       anchors.centerIn: parent
-      width: Math.min(parent.width, parent.height * card.monitorAspect)
-      height: Math.min(parent.height, parent.width / card.monitorAspect)
+      width: Math.min(parent.width - card.presentation.previewInset * 2,
+        (parent.height - card.presentation.previewInset * 2) * card.monitorAspect)
+      height: width / card.monitorAspect
 
-      Rectangle {
+      Image {
         anchors.fill: parent
-        color: Qt.darker(Commons.Color.menu.background, 1.32)
-        border.width: Commons.Style.spacing.hairline
-        border.color: Commons.Util.alpha(Commons.Color.foreground, 0.10)
+        source: card.presentation.sessionWallpaper
+        sourceSize.width: card.presentation.thumbnailWidth * 2
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+        cache: true
+        retainWhileLoading: true
       }
       Repeater {
         model: card.windows.length
@@ -93,21 +93,42 @@ Rectangle {
         }
       }
     }
+    Rectangle {
+      anchors.fill: parent
+      color: "transparent"
+      radius: card.presentation.cornerRadius
+      border.width: card.selected ? 2 : 1
+      border.color: card.selected ? Commons.Color.imagePicker.selectedBorder : Commons.Color.imagePicker.unselectedBorder
+    }
   }
-  Text {
-    id: label
+  Item {
+    id: labelRow
     anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-    leftPadding: Commons.Style.space(12)
-    rightPadding: Commons.Style.space(12)
     height: card.presentation.labelHeight
-    verticalAlignment: Text.AlignVCenter
-    textFormat: Text.PlainText
-    text: card.groupData ? card.groupData.label : ""
-    color: card.selected ? Commons.Color.menu.selectedText : Commons.Color.menu.text
-    font.family: Commons.Style.font.family
-    font.pixelSize: Commons.Style.font.body
-    font.weight: card.selected ? Font.DemiBold : Font.Medium
-    elide: Text.ElideRight
-    maximumLineCount: 1
+    Row {
+      anchors.centerIn: parent
+      spacing: Commons.Style.space(6)
+      Rectangle {
+        width: Commons.Style.space(5)
+        height: width
+        radius: width / 2
+        anchors.verticalCenter: parent.verticalCenter
+        color: Commons.Color.accent
+        border.width: Commons.Style.spacing.hairline
+        border.color: Commons.Util.alpha(Commons.Color.background, 0.7)
+        opacity: card.selected ? 1 : 0
+      }
+      Text {
+        textFormat: Text.PlainText
+        text: card.groupData ? String(card.groupData.id) : ""
+        color: Commons.Color.imagePicker.text
+        style: Text.Outline
+        styleColor: Commons.Util.alpha(Commons.Color.background, 0.7)
+        opacity: card.selected ? 1 : 0.85
+        font.family: Commons.Style.font.family
+        font.pixelSize: Commons.Style.font.body
+        font.weight: card.selected ? Font.DemiBold : Font.Normal
+      }
+    }
   }
 }

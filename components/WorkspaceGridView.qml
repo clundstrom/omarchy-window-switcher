@@ -24,6 +24,23 @@ GridView {
   cacheBuffer: cellWidth
   model: workspaceGroups
 
+  function revealSelection() {
+    if (!switcherOpen || selectedIndex < 0 || width <= 0 || cellWidth <= 0) return
+    forceLayout()
+    var entries = workspaceGroups || []
+    if (selectedIndex >= entries.length) return
+    var left = selectedIndex * cellWidth
+    var right = left + cellWidth
+    var next = Math.min(contentX, left)
+    if (right > next + width) next = right - width
+    contentX = Math.max(0, Math.min(next, Math.max(0, entries.length * cellWidth - width)))
+  }
+  onSelectedIndexChanged: Qt.callLater(view.revealSelection)
+  onWorkspaceGroupsChanged: Qt.callLater(view.revealSelection)
+  onWidthChanged: Qt.callLater(view.revealSelection)
+  onCellWidthChanged: Qt.callLater(view.revealSelection)
+  onSwitcherOpenChanged: if (switcherOpen) Qt.callLater(view.revealSelection)
+
   readonly property var captureOffsets: {
     var offsets = []
     // Reading GridView.model during Qt's model replacement can re-enter its
