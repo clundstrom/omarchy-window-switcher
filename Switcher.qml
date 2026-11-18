@@ -294,6 +294,8 @@ Item {
     id: captureRamp
     interval: 16
     repeat: true
+    // Start the first batch once geometry is ready, then pace later batches.
+    triggeredOnStart: true
     onTriggered: {
       if (!root.opened) { stop(); return }
       var target = Math.min(root.captureBudget, root.windows.length)

@@ -89,6 +89,42 @@ The fatal right-click gesture was not deliberately repeated. The crash stack
 points into Hyprland's Lua resize dispatcher; its underlying cause remains
 unconfirmed.
 
+### Opening-time profile
+
+On 18 November 2026, a live timing profile compared 20 openings before and
+20 openings after starting the first capture batch immediately. The session
+used Quickshell 0.3.2 on a 3440×1440 monitor at 240 Hz, with three tracked
+windows and two regular workspaces displayed. Each opening used the host's
+explicit activation mode and restored the original window on close.
+
+Median first-preview arrival fell from 48 ms to 34 ms. The 95th percentile
+fell from 51 ms to 36 ms, and the observed ranges were 46–62 ms before and
+31–45 ms after. Opening logic took a median of 1 ms in both runs. These times
+start inside the opening function and end when a native preview reports
+content. They exclude shortcut delivery and final presentation on the display.
+
+Temporary in-memory probes showed a 16–19 ms wait between geometry handling
+and the first capture batch. The first images then arrived in 1–2 ms in the
+instrumented baseline. The capture timer now triggers its first batch on
+start. Later batches retain their 16 ms spacing and the existing capture
+budget. Fresh geometry is still required before captures begin.
+
+A separate read-only local socket test took a median of 0.09 ms to request
+window data from Hyprland. Inside the shell, the native window-data signal
+arrived around 1–2 ms after opening, but the deferred geometry callback usually
+ran around 30 ms. This locates a remaining delay between notification and
+callback execution. It does not establish which native rendering or event-loop
+operation caused that delay. Rewriting the small workspace calculations in a
+compiled language would not directly remove this scheduling gap.
+
+This was a timing profile, not a sampled processor profile. The temporary
+probes were removed before the final measurements. No debugger listener,
+screenshots, persistent preview cache or new dependency was introduced.
+Forward/reverse cycling, frozen order, modifier release, capture cleanup and
+shortcut-inhibitor cleanup passed live checks. Code checks and all seven
+offscreen layout cases passed. Larger window counts, other monitors and
+different workloads still need separate measurements.
+
 ## Updates
 
 The focused implementation lives on `main`, the fork's default branch.
