@@ -196,6 +196,18 @@ Item {
     var selected = selectedWindow
     beginClose(selected && selected.toplevel ? selected.toplevel : originalToplevel)
   }
+  function activateWorkspace(key) {
+    if (!opened) return
+    for (var i = 0; i < groups.length; i++) {
+      if (String(groups[i].key) !== key) continue
+      var target = windows[groups[i].startIndex]
+      if (target && target.toplevel) {
+        noteLifecycle("workspace-clicked")
+        beginClose(target.toplevel)
+      }
+      return
+    }
+  }
   // Host lifecycle cleanup, independent of user-facing activation controls.
   function close() { beginClose(originalToplevel) }
   function toggleTransparency(unused) {
@@ -328,7 +340,7 @@ Item {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     // Desktop mouse bindings are processed before QML pointer events. Keep
-    // gestures such as Super+right-drag out of this keyboard-only overlay.
+    // gestures such as Super+right-drag out of this workspace overlay.
     // Its four native bindings bypass inhibition; all gestures resume on close.
     ShortcutInhibitor {
       id: gestureGuard
@@ -370,6 +382,7 @@ Item {
           selectedIndex: root.selectedIndex
           switcherOpen: root.opened
           captureLimit: root.captureLimit
+          onWorkspaceActivated: function(workspaceKey) { root.activateWorkspace(workspaceKey) }
           onFrameReady: {
             if (root.opened && root.firstFrameMs < 0) {
               root.firstFrameMs = Date.now() - root.openedAt

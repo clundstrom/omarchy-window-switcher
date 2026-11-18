@@ -14,6 +14,7 @@ Rectangle {
   required property int captureStart
   required property int captureLimit
   signal frameReady()
+  signal activated(string workspaceKey)
 
   Native.WorkspaceCore { id: geometryCore }
   readonly property var layout: {
@@ -31,6 +32,13 @@ Rectangle {
     return 16 / 9
   }
   color: "transparent"
+
+  WorkspaceTapTarget {
+    anchors.fill: parent
+    z: 1
+    enabled: card.captureEnabled
+    onActivated: if (card.groupData) card.activated(String(card.groupData.key))
+  }
 
   Item {
     id: previewFrame

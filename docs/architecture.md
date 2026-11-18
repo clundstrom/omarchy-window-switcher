@@ -105,6 +105,10 @@ to change it without targeting a regular desktop window.
 Keyboard focus and a shortcut inhibitor belong to the overlay while it is open.
 The inhibitor prevents desktop gestures from acting on windows behind it.
 
+A left click on a preview sends its workspace key from `WorkspaceTapTarget`
+through the card and grid to the controller. The controller resolves the current
+window source and uses the same unmap-and-activate lifecycle as keyboard release.
+
 Capture work is limited to visible cards, with the selected workspace scheduled
 first. The first batch starts when geometry is ready, and later batches are
 paced. There are at most 20 enabled capture sources. `live: false` requests
@@ -124,6 +128,7 @@ records and capture delegates used by the open overlay are cleared.
 | [`CompositorSignals.qml`](../components/CompositorSignals.qml) | Window, workspace and monitor notifications, including the geometry-reply notification. |
 | [`WindowRecords.qml`](../components/WindowRecords.qml) | Associates native window handles with metadata and stable source tokens. |
 | [`SwitcherKeySurface.qml`](../components/SwitcherKeySurface.qml) | Cycling, modifier release and the opacity shortcut inside the overlay. |
+| [`WorkspaceTapTarget.qml`](../components/WorkspaceTapTarget.qml) | Left-click activation on release, with drag cancellation and no hover selection. |
 | [`WorkspaceGridView.qml`](../components/WorkspaceGridView.qml) | Scrolling or stationary wrapped layout, selection visibility and capture priority. |
 | [`WorkspaceCard.qml`](../components/WorkspaceCard.qml) | Composes wallpaper and native window images at Rust-calculated positions, with a workspace number and selection marker. |
 | [`WorkspacePresentation.qml`](../components/WorkspacePresentation.qml) and [`compact.json`](../compact.json) | Bounded appearance settings, display proportions, wallpaper preloading and file watching. |

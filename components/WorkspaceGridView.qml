@@ -12,6 +12,7 @@ GridView {
   required property bool switcherOpen
   required property int captureLimit
   signal frameReady()
+  signal workspaceActivated(string workspaceKey)
   readonly property bool wrapped: presentation.wrapOverflow
 
   clip: true
@@ -96,6 +97,7 @@ GridView {
       captureStart: view.captureOffsets[workspaceCell.index] === undefined ? 0 : view.captureOffsets[workspaceCell.index]
       captureLimit: view.captureLimit
       onFrameReady: view.frameReady()
+      onActivated: function(workspaceKey) { view.workspaceActivated(workspaceKey) }
     }
   }
 }

@@ -31,7 +31,17 @@ The layer is keyboard-exclusive on the focused monitor. Native global shortcuts
 open/cycle the switcher without spawning a shell command. Separate modifier
 trackers cover releases that occur before the layer receives keyboard focus;
 the in-popup key surface also handles release. Workspace selection and
-activation are keyboard-driven.
+activation work through the keyboard or a left click on a preview.
+
+`WorkspaceTapTarget.qml` accepts a left-button tap on release. It stays passive
+while pressed, so a drag can scroll the horizontal view and cancel the tap.
+Cards send their workspace key through the grid to the controller, which looks
+up the current source and uses the existing close-and-activate path. A click
+does not first move the keyboard selection or scroll the row. Closing disables
+the tap targets and detaches captures before the target window is activated.
+Later modifier release cannot override a clicked workspace because the session
+is already closed. Hovering does not change selection, and the shortcut
+inhibitor remains in place for desktop mouse gestures.
 
 ### Presentation
 
@@ -55,7 +65,7 @@ first keeps the configured preview size and the number of columns that fit.
 If the rows exceed the monitor height, it considers more columns and smaller
 previews to keep the grid visible. `maxVisible` limits columns. Capture scheduling
 uses both coordinates and keeps the selected workspace first within the same
-20-source budget. Wrapping disables dragging; it adds no mouse activation.
+20-source budget. Wrapping disables dragging.
 
 Scrolling overflow reserves roughly a fifth of a preview beyond the complete cards. The
 half-gap is included in that allowance so image content, rather than empty
@@ -186,6 +196,15 @@ second row and the scrolling view showed the partial neighbouring preview.
 Forward/reverse wrapping, frozen order, opacity and capture/inhibitor cleanup
 passed in both modes. The temporary limit was restored to five afterwards,
 with 800-pixel previews and wrapped overflow enabled in the installed settings.
+
+Left-click activation passed focused pointer tests for activation on release,
+drag cancellation, ignored hover/right clicks and disabled targets. A temporary
+Wayland virtual pointer also checked the actual installed overlay in both
+overflow modes. Clicking a preview different from the keyboard selection moved
+to that workspace while the modifier was held. Releasing the modifier afterwards
+kept the clicked workspace active. Captures and inhibition were released in
+both modes. The pointer helper was used only for testing and is not part of the
+plugin or its dependencies. No live right-click gesture was attempted.
 
 The scoped gesture guard was checked in the live session: inhibition became
 active with popup focus, Tab cycled selection, and closing released inhibition

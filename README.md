@@ -76,7 +76,11 @@ Hold Alt and tap Tab to highlight your previous workspace. Keep holding Alt
 and tap Tab again to move forward, or Shift+Tab to move backward. Release Alt
 when the workspace you want is highlighted.
 
-Selection is controlled by the keyboard. While the popup is open, ordinary
+You can also left-click a preview or its workspace number to switch immediately,
+including while holding Alt. Moving the pointer does not change selection.
+Dragging the scrolling row cancels the click so you can still scroll it.
+
+While the popup is open, ordinary
 desktop shortcuts and mouse gestures are blocked to prevent them from acting
 on windows behind it. The switcher's own shortcuts remain available, and normal
 desktop controls return as soon as it closes.

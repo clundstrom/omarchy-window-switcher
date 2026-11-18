@@ -9,6 +9,7 @@ const switcher = read('Switcher.qml')
 const card = read('components/WorkspaceCard.qml')
 const grid = read('components/WorkspaceGridView.qml')
 const keys = read('components/SwitcherKeySurface.qml')
+const tap = read('components/WorkspaceTapTarget.qml')
 const records = read('components/WindowRecords.qml')
 const allQml = [switcher, ...fs.readdirSync(path.join(root, 'components'))
   .filter(name => name.endsWith('.qml')).map(name => read(`components/${name}`))].join('\n')
@@ -34,8 +35,12 @@ assert.match(card, /live:\s*false/, 'workspace thumbnails do not stream in the b
 assert.doesNotMatch(card + switcher, /Behavior on opacity|NumberAnimation/,
   'the high-frequency workspace overlay has no QML fade')
 assert.match(card, /constraintSize:/, 'capture requests are bounded to preview dimensions')
-assert.doesNotMatch(card + grid + switcher, /MouseArea\s*\{|cardActivated|signal activated\(/,
-  'mouse activation controls are removed from the workspace switcher')
+assert.doesNotMatch(card + grid + switcher + tap, /MouseArea\s*\{|HoverHandler\s*\{/,
+  'click activation does not add pointer grabs or hover selection')
+assert.match(tap, /acceptedButtons:\s*Qt\.LeftButton/, 'only the left mouse button activates a workspace')
+assert.match(tap, /gesturePolicy:\s*TapHandler\.DragThreshold/, 'dragging cancels activation')
+assert.match(switcher, /onWorkspaceActivated:[^\n]*root\.activateWorkspace/,
+  'card activation reaches the controller by workspace identity')
 assert.match(card, /textFormat:\s*Text\.PlainText/,
   'compositor-controlled labels cannot load rich-text resources')
 assert.match(grid, /captureEnabled:[^\n]*switcherOpen[^\n]*inViewport/,
@@ -53,7 +58,7 @@ for (const file of ['SwitcherHeader.qml', 'WindowCard.qml', 'WindowGridView.qml'
     `${file} is removed rather than merely hidden`)
 }
 assert.match(switcher, /!leftModifier\.pressed && !rightModifier\.pressed/,
-  'native activation waits until both workspace modifiers have been released')
+  'modifier-release activation waits until both workspace modifiers have been released')
 assert.match(switcher, /if \(root\.opened && root\.modifierTrackingSeen\) root\.finishModifierRelease\(\)/,
   'a release before layer focus is handled at opening')
 assert.match(switcher, /root\.windows = \[\]/,
