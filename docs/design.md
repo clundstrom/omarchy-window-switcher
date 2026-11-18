@@ -23,6 +23,16 @@ trackers cover releases that occur before the layer receives keyboard focus;
 the in-popup key surface also handles release. Workspace selection and
 activation are keyboard-driven.
 
+### Super-modifier compatibility
+
+The default Alt+Tab bindings avoid Omarchy's Super+mouse window gestures. On
+the tested Hyprland 0.56.2 build, Super+right-click crashed in the Lua window
+resize dispatcher. This is reached before the overlay can handle the click.
+For affected installations using logical Super, the local workaround is
+`hl.unbind("SUPER + mouse:273")` in the user bindings file. This disables
+Super+right-drag resizing globally; remove it only after verifying a compositor
+fix. It is not part of the plugin's default Alt bindings.
+
 ## Performance and privacy
 
 The opening path does no desktop-entry matching or app-icon refresh. Capture
