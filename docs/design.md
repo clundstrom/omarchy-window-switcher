@@ -25,13 +25,14 @@ activation are keyboard-driven.
 
 ### Super-modifier compatibility
 
-The default Alt+Tab bindings avoid Omarchy's Super+mouse window gestures. On
-the tested Hyprland 0.56.2 build, Super+right-click crashed in the Lua window
-resize dispatcher. This is reached before the overlay can handle the click.
-For affected installations using logical Super, the local workaround is
-`hl.unbind("SUPER + mouse:273")` in the user bindings file. This disables
-Super+right-drag resizing globally; remove it only after verifying a compositor
-fix. It is not part of the plugin's default Alt bindings.
+Desktop mouse bindings run before QML pointer handling. A native Wayland
+shortcut inhibitor blocks desktop gestures only while the overlay is open.
+The four switcher bindings use `dont_inhibit = true` so cycling and modifier
+release remain available. Normal desktop shortcuts and Super+right-drag resizing
+resume when the overlay closes. This guards the observed Hyprland 0.56.2 Lua
+resize-dispatcher crash path without globally disabling the resize gesture.
+Install the updated bindings together with the QML change. The inhibitor is
+compositor-managed; bindings explicitly marked `dont_inhibit` bypass it.
 
 ## Performance and privacy
 
@@ -80,6 +81,13 @@ The offscreen test also covers empty/shrinking workspace lists and closing
 capture sources. Capture scheduling reads a plain input array rather than
 `GridView.model`: reading Qt's model getter from a content-position binding
 during model replacement caused a reproducible native crash in the test.
+
+The scoped gesture guard was checked in the live session: inhibition became
+active with popup focus, Tab cycled selection, and closing released inhibition
+and all capture sources. The normal Super+right-drag binding remains installed.
+The fatal right-click gesture was not deliberately repeated. The crash stack
+points into Hyprland's Lua resize dispatcher; its underlying cause remains
+unconfirmed.
 
 ## Updates
 

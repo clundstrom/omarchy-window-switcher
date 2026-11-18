@@ -213,6 +213,7 @@ Item {
       focusedWorkspaceId: focusedWorkspaceId, targetScreen: targetScreen ? targetScreen.name : "",
       captureLimit: captureLimit, captureBudget: captureBudget, openWorkMs: openWorkMs, firstFrameMs: firstFrameMs,
       keyFocus: keySurface.activeFocus, releaseArmed: releaseArmed, releaseActivation: releaseActivation,
+      shortcutsInhibited: gestureGuard.active,
       modifierTrackingSeen: modifierTrackingSeen, globalModifierHeld: leftModifier.pressed || rightModifier.pressed,
       lifecycleEvents: lifecycleEvents })
   }
@@ -312,6 +313,14 @@ Item {
     WlrLayershell.namespace: "omarchy-window-switcher"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    // Desktop mouse bindings are processed before QML pointer events. Keep
+    // gestures such as Super+right-drag out of this keyboard-only overlay.
+    // Its four native bindings bypass inhibition; all gestures resume on close.
+    ShortcutInhibitor {
+      id: gestureGuard
+      window: panel
+      enabled: root.opened
+    }
     mask: Region { width: root.opened ? panel.width : 0; height: root.opened ? panel.height : 0 }
     SwitcherKeySurface {
       id: keySurface

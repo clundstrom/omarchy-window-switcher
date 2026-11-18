@@ -58,4 +58,8 @@ assert.match(switcher, /if \(root\.opened && root\.modifierTrackingSeen\) root\.
   'a release before layer focus is handled at opening')
 assert.match(switcher, /root\.windows = \[\]/,
   'closed native capture records are discarded')
+assert.match(switcher, /ShortcutInhibitor\s*\{[\s\S]*?enabled:\s*root\.opened/,
+  'desktop gestures are inhibited only during the workspace interaction')
+assert.equal((read('docs/bindings.lua').match(/dont_inhibit = true/g) || []).length, 4,
+  'all four native switcher bindings remain usable during inhibition')
 console.log('ok - workspace plugin boundaries')
