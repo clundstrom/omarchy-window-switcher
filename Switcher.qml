@@ -4,10 +4,7 @@ import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons as Commons
 import "components"
-import "model/WorkspaceModel.js" as WorkspaceModel
-import "model/WindowSnapshot.js" as WindowSnapshot
-import "model/MruOrder.js" as MruOrder
-import "model/Navigation.js" as Navigation
+import "native" as Native
 
 Item {
   id: root
@@ -50,52 +47,48 @@ Item {
   function selectedKey() {
     return selectedIndex >= 0 && selectedIndex < groups.length ? groups[selectedIndex].key : ""
   }
-  function groupIndex(key) {
-    for (var i = 0; i < groups.length; i++) if (groups[i].key === String(key)) return i
-    return -1
+  function coreCall(operation, input) {
+    var result = JSON.parse(workspaceCore.evaluate(operation, JSON.stringify(input)))
+    if (result && result.error) {
+      console.warn("Workspace switcher: " + result.error)
+      return null
+    }
+    return result
+  }
+  function metadata(record) {
+    return { key: record.key, sourceToken: record.sourceToken, sourceIndex: record.sourceIndex,
+      workspaceId: record.workspaceId, workspaceName: record.workspaceName,
+      monitorId: record.monitorId, monitorName: record.monitorName, minimized: record.minimized,
+      rect: record.rect, monitorRect: record.monitorRect }
   }
   function rebuildWindows(initialDirection) {
-    var previousKey = selectedKey()
-    var previousIndex = selectedIndex
     var toplevels = currentToplevels()
     records.syncObjectKeys(toplevels)
     var rows = []
-    for (var i = 0; i < toplevels.length; i++) {
-      if (toplevels[i]) rows.push(records.recordFor(toplevels[i], i))
-    }
-    mruKeys = MruOrder.pruneMru(mruKeys, rows, 200)
+    var activeKey = null
     var active = ToplevelManager.activeToplevel
-    for (var j = 0; active && j < rows.length; j++) {
-      if (rows[j].toplevel === active) {
-        mruKeys = MruOrder.noteMru(mruKeys, rows[j].key, rows, 200)
-        break
-      }
+    for (var i = 0; i < toplevels.length; i++) {
+      if (!toplevels[i]) continue
+      var record = records.recordFor(toplevels[i], i)
+      rows.push(record)
+      if (record.toplevel === active) activeKey = record.key
     }
-    allWindows = MruOrder.orderByMru(rows, mruKeys)
-    workspaceMruKeys = WorkspaceModel.completeWorkspaceMru(workspaceMruKeys, allWindows,
-      Hyprland.focusedWorkspace ? focusedWorkspaceId : null, 100)
+    var result = coreCall("refresh", { rows: rows.map(metadata), mruKeys: mruKeys,
+      workspaceHistory: workspaceMruKeys, frozenHistory: openWorkspaceMruKeys,
+      focusedWorkspaceId: Hyprland.focusedWorkspace ? focusedWorkspaceId : null,
+      activeKey: activeKey, opened: opened,
+      openingDirection: initialDirection === undefined ? null : initialDirection,
+      previousWindows: windows.map(metadata), selectedKey: selectedKey(), selectedIndex: selectedIndex })
+    if (!result) return
+    mruKeys = result.mruKeys
+    workspaceMruKeys = result.workspaceHistory
+    allWindows = result.windowOrder.map(function(index) { return rows[index] })
     if (!opened) return
-    if (initialDirection !== undefined) openWorkspaceMruKeys = workspaceMruKeys.slice()
-    var next = WorkspaceModel.orderByWorkspace(WorkspaceModel.regularWindows(allWindows), openWorkspaceMruKeys)
-    if (initialDirection === undefined) {
-      var snapshot = WindowSnapshot.reconcile(windows, next)
-      if (!snapshot.changed) return
-      next = snapshot.records
-    }
-    windows = next
-    groups = WorkspaceModel.groupWindows(next)
-    var preserved = groupIndex(previousKey)
-    if (!groups.length) selectedIndex = -1
-    else if (initialDirection !== undefined) {
-      if (initialDirection < 0) {
-        var current = groupIndex(String(focusedWorkspaceId))
-        selectedIndex = Navigation.moveSequential(current >= 0 ? current : 0, -1, groups.length)
-      } else {
-        var key = initialDirection === 0 ? String(focusedWorkspaceId)
-          : WorkspaceModel.previousWorkspaceKey(next, focusedWorkspaceId, openWorkspaceMruKeys)
-        selectedIndex = Math.max(0, groupIndex(key))
-      }
-    } else selectedIndex = preserved >= 0 ? preserved : Math.max(0, Math.min(previousIndex, groups.length - 1))
+    if (initialDirection !== undefined) openWorkspaceMruKeys = result.frozenHistory
+    if (!result.changed) return
+    windows = result.workspaceOrder.map(function(index) { return rows[index] })
+    groups = result.groups
+    selectedIndex = result.selectedIndex
     revealSelected()
   }
   function noteActiveToplevel() {
@@ -103,11 +96,15 @@ Item {
     if (!active) return
     for (var i = 0; i < allWindows.length; i++) {
       var record = allWindows[i]
-      if (record.toplevel === active) {
-        mruKeys = MruOrder.noteMru(mruKeys, record.key, allWindows, 200)
-        workspaceMruKeys = WorkspaceModel.noteWorkspaceMru(workspaceMruKeys, record.workspaceId, 100)
-        break
+      if (record.toplevel !== active) continue
+      var result = coreCall("focus", { mruKeys: mruKeys, workspaceHistory: workspaceMruKeys,
+        liveKeys: allWindows.map(function(row) { return row.key }), key: record.key,
+        workspaceId: record.workspaceId })
+      if (result) {
+        mruKeys = result.mruKeys
+        workspaceMruKeys = result.workspaceHistory
       }
+      break
     }
     modelRefresh.restart()
   }
@@ -131,7 +128,7 @@ Item {
     })
   }
   function step(direction) {
-    selectedIndex = Navigation.moveSequential(selectedIndex, direction, groups.length)
+    selectedIndex = workspaceCore.step(selectedIndex, direction, groups.length)
     revealSelected()
   }
   function finishModifierRelease() {
@@ -218,6 +215,7 @@ Item {
       lifecycleEvents: lifecycleEvents })
   }
 
+  Native.WorkspaceCore { id: workspaceCore }
   WorkspacePresentation { id: appearance }
   WindowRecords { id: records }
   GlobalShortcut {
@@ -255,7 +253,8 @@ Item {
     onGeometrySnapshotReceived: if (geometrySettle.running) root.geometryReady()
     onActiveWindowChanged: root.noteActiveToplevel()
     onWorkspaceFocusChanged: function(workspaceId) {
-      root.workspaceMruKeys = WorkspaceModel.noteWorkspaceMru(root.workspaceMruKeys, workspaceId, 100)
+      var history = root.coreCall("workspaceFocus", { keys: root.workspaceMruKeys, workspaceId: workspaceId })
+      if (history) root.workspaceMruKeys = history
     }
     onScreenLayoutChanged: {
       if (root.opened) root.targetScreen = root.targetScreenForOpen()

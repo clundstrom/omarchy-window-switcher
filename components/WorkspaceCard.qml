@@ -1,7 +1,7 @@
 import QtQuick
 import Quickshell.Wayland
 import qs.Commons as Commons
-import "../model/WorkspaceModel.js" as WorkspaceModel
+import "../native" as Native
 
 // The original native workspace composition, with one label and one border.
 Rectangle {
@@ -15,7 +15,14 @@ Rectangle {
   required property int captureLimit
   signal frameReady()
 
-  readonly property var layout: WorkspaceModel.workspaceLayout(windows)
+  Native.WorkspaceCore { id: geometryCore }
+  readonly property var layout: {
+    var input = windows.map(function(record) {
+      return record ? { minimized: record.minimized, rect: record.rect, monitorRect: record.monitorRect } : null
+    })
+    var result = JSON.parse(geometryCore.evaluate("layout", JSON.stringify(input)))
+    return result && !result.error ? result : []
+  }
   readonly property real monitorAspect: {
     for (var i = 0; i < windows.length; i++) {
       var rect = windows[i] && windows[i].monitorRect

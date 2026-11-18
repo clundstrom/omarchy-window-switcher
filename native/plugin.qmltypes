@@ -1,0 +1,22 @@
+import QtQuick.tooling 1.2
+Module {
+    Component {
+        name: "WorkspaceCore"
+        prototype: "QObject"
+        exports: ["WorkspaceSwitcher.Native/WorkspaceCore 1.0"]
+        exportMetaObjectRevisions: [0]
+        Method {
+            name: "evaluate"
+            type: "QString"
+            Parameter { name: "operation"; type: "QString" }
+            Parameter { name: "input"; type: "QString" }
+        }
+        Method {
+            name: "step"
+            type: "int"
+            Parameter { name: "index"; type: "int" }
+            Parameter { name: "direction"; type: "int" }
+            Parameter { name: "count"; type: "int" }
+        }
+    }
+}

@@ -1,0 +1,17 @@
+#!/bin/bash
+set -euo pipefail
+ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+build_key=$(printf '%s' "$ROOT" | sha256sum | cut -c1-16)
+export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/workspace-switcher/build-$build_key}
+if [[ ${1:-} == --build-path ]]; then
+  printf '%s\n' "$CARGO_TARGET_DIR"
+  exit 0
+fi
+if command -v cargo >/dev/null && cargo --version >/dev/null 2>&1; then
+  exec cargo "$@"
+elif command -v mise >/dev/null && mise where rust@stable >/dev/null 2>&1; then
+  exec mise exec rust@stable -- cargo "$@"
+else
+  echo 'Install Rust and Cargo before building Workspace Switcher.' >&2
+  exit 1
+fi

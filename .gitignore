@@ -1,0 +1,3 @@
+/rust/target/
+/native/lib*.so
+/native/qmldir

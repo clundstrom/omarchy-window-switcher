@@ -5,6 +5,11 @@ Omarchy. Hold Alt and press Tab to open a small strip of workspace previews
 in the centre of the focused monitor. Keep pressing Tab to move through them,
 then release Alt to switch to the highlighted workspace.
 
+This branch uses Rust for workspace history, ordering, selection and preview
+layout calculations. It keeps the existing Qt interface and window capture
+components. A small compiled module connects them, without running a separate
+background program.
+
 ![Workspace Switcher showing four workspace previews, with Workspace 1 selected](docs/images/workspace-switcher.png)
 
 Each preview uses images of the workspace's windows and the layout reported by
@@ -24,11 +29,16 @@ You need Omarchy with its Quickshell plugin system and Hyprland's window preview
 support. The plugin requires version 1 of Omarchy's plugin format. More details
 about compatibility are in the [design notes](docs/design.md).
 
-For a new installation, run:
+Builds need Rust, Cargo, a C++ compiler and the Qt development tools supplied
+with Omarchy. If Rust is not installed, you can install it under your user
+account with `mise install rust@stable`.
+
+For a new installation of the Rust branch, run:
 
 ```bash
-git clone --branch main https://github.com/clundstrom/omarchy-window-switcher.git \
+git clone --branch rewrite/rust-core https://github.com/clundstrom/omarchy-window-switcher.git \
   ~/.config/omarchy/plugins/community.window-switcher
+~/.config/omarchy/plugins/community.window-switcher/bin/build
 omarchy plugin enable community.window-switcher
 ```
 
@@ -84,8 +94,13 @@ loaded automatically.
 
 ## Updates and development
 
-This fork is maintained on the `main` branch. Keep the installed copy on that
-branch and save or commit your appearance changes before updating. The
+The Rust implementation is developed on `rewrite/rust-core`. The working
+JavaScript implementation remains on `main`. After updating this branch, run
+`./bin/build` in the plugin directory before restarting the shell. Rebuild after
+a Qt upgrade as well. Build files are kept outside the plugin directory in
+your user cache.
+
+Save or commit your appearance changes before updating. The
 [design notes](docs/design.md) explain updates, testing, compatibility limits
 and how to restore an earlier version.
 

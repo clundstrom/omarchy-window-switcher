@@ -14,8 +14,18 @@ surface. `WindowRecords.qml` reads the compositor's window and monitor data;
 `CompositorSignals.qml` handles changes. `WorkspaceGridView.qml` schedules the
 horizontal strip and `WorkspaceCard.qml` composes native window captures.
 `WorkspacePresentation.qml` reads the six bounded visual settings from
-`compact.json`. The small JavaScript models handle MRU, navigation, geometry
-and record reuse.
+`compact.json`. The Rust core in `rust/src/core.rs` handles history, ordering,
+navigation, geometry and preview-change detection. `native/coreplugin.cpp` is
+a thin Qt adapter, using generated CXX bindings to call Rust. Window objects
+and capture sources stay in QML. The bridge passes only plain metadata and
+returns indices, labels, history and normalised rectangles.
+
+The core is stateless. The existing controller retains its session history
+and opening snapshot, so there is no second history store to synchronise.
+Source tokens distinguish native windows that reuse the same address without
+passing native object pointers into Rust. The boundary rejects malformed or
+oversized snapshots instead of panicking. Rust dependencies are compiled into
+one local Qt module, with no additional service or runtime network access.
 
 The layer is keyboard-exclusive on the focused monitor. Native global shortcuts
 open/cycle the switcher without spawning a shell command. Separate modifier
@@ -178,19 +188,26 @@ for the supported modes.
 
 ## Updates
 
-The focused implementation lives on `main`, the fork's default branch.
-Keep the installed copy on that branch and update it explicitly:
+The Rust implementation lives on `rewrite/rust-core`. Build it with `bin/build`
+before enabling it. Cargo downloads the locked build dependencies on the first
+build. Build artifacts stay in the user cache because Omarchy rejects symlinks
+inside plugin folders. The build generates a local module directory file that
+points to this checkout's compiled library, allowing Quickshell's embedded
+interface components to load it without changing global import paths.
+
+Update an installed Rust checkout explicitly:
 
 ```bash
 git -C ~/.config/omarchy/plugins/community.window-switcher fetch origin
-git -C ~/.config/omarchy/plugins/community.window-switcher switch main
-git -C ~/.config/omarchy/plugins/community.window-switcher merge --ff-only origin/main
+git -C ~/.config/omarchy/plugins/community.window-switcher merge --ff-only origin/rewrite/rust-core
+~/.config/omarchy/plugins/community.window-switcher/bin/build
 omarchy restart shell
 ```
 
 Preserve or commit local `compact.json` changes before updating. Omarchy's normal
-plugin updater fetches `origin HEAD`, which now follows the focused branch,
-and attempts a fast-forward. The original upstream history is retained, and the redesign
+plugin updater does not compile Rust modules. Rebuild explicitly after source
+updates and Qt upgrades. The fork's default `main` branch retains the working
+JavaScript implementation during this experiment. The original upstream history is retained, and the redesign
 checkpoint remains on `redesign/compact-workspaces`. Incorporate upstream
 changes deliberately in the development checkout, validate, then push the
 reviewed branch. Avoid forced checkouts or hard resets over customizations.
@@ -200,6 +217,16 @@ retain compiled components after a plugin rescan. Files in the user plugin
 directory survive ordinary configuration reloads.
 
 ## Rollback
+
+To return from the Rust branch to the working JavaScript version, switch the
+installed checkout to `main` and restart the shell. Both versions use the same
+plugin identity and bindings. The generated native library is unused by the
+JavaScript version.
+
+```bash
+git -C ~/.config/omarchy/plugins/community.window-switcher switch main
+omarchy restart shell
+```
 
 The last working redesign checkpoint is `5688690` on
 `redesign/compact-workspaces`. Back up the current plugin and personal bindings

@@ -1,7 +1,6 @@
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
-import "../model/WorkspaceModel.js" as WorkspaceModel
 
 // Non-visual record builder: turns compositor toplevels into the plain
 // records the model functions operate on.
@@ -66,11 +65,19 @@ QtObject {
     }
   }
 
+  // Quickshell exposes coordinate pairs as indexed Qt lists, not JS Arrays.
+  function geometryPair(value) {
+    if (!value || typeof value !== "object" || typeof value.length !== "number" || value.length < 2
+        || value[0] === null || value[0] === undefined || value[1] === null || value[1] === undefined) return null
+    var first = Number(value[0])
+    var second = Number(value[1])
+    return isFinite(first) && isFinite(second) ? [first, second] : null
+  }
   function recordFor(toplevel, sourceIndex) {
     var hyprland = hyprlandToplevelFor(toplevel)
     var ipc = hyprland && hyprland.lastIpcObject ? hyprland.lastIpcObject : {}
-    var at = WorkspaceModel.geometryPair(ipc.at)
-    var ipcSize = WorkspaceModel.geometryPair(ipc.size)
+    var at = geometryPair(ipc.at)
+    var ipcSize = geometryPair(ipc.size)
     var workspace = hyprland ? hyprland.workspace : null
     var monitor = hyprland ? hyprland.monitor : null
     var address = String(hyprland && hyprland.address ? hyprland.address : "")
@@ -83,6 +90,7 @@ QtObject {
     var record = {
       key: address ? hyprlandKeyPrefix + address : fallbackKeyFor(toplevel),
       sourceIndex: focusHistoryId,
+      sourceToken: fallbackKeyFor(toplevel),
       toplevel: toplevel,
       address: address,
       workspaceId: workspaceId,
