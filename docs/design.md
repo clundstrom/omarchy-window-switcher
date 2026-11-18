@@ -3,7 +3,7 @@
 ## One feature
 
 The plugin switches occupied regular workspaces in most-recently-used order.
-It retains forward/reverse cycling, modifier-release activation, cancellation,
+It retains forward/reverse cycling, modifier-release activation,
 left-click workspace activation and native workspace previews. Search, filters,
 individual-window navigation, alternate views, naming and window-close controls
 are outside this fork's scope.
@@ -50,7 +50,7 @@ PATH=/usr/lib/qt6/bin:$PATH ./test/all
 
 An offscreen geometry test cannot validate Wayland capture, actual colors or
 compositor focus. In the live session, check repeated forward/reverse cycling,
-quick modifier release, pointer movement, left-click activation, Escape,
+quick modifier release, pointer movement, left-click activation,
 workspace removal, tiled/floating/scrolling layouts and capture cleanup.
 Observe the actual overlay before claiming visual correctness. Check ordinary
 and ultrawide logical sizes, and test mixed-scale monitors when available.
@@ -62,7 +62,7 @@ measurements are specific to the machine and current workload.
 The initial live checks on a 3440×1440 monitor observed the corrected native
 three-column preview, 1–3 ms of controller work, and first captured frames in
 54–68 ms. First-frame timing measures capture arrival, not pixels reaching the
-display. Forward/reverse navigation, frozen order, Escape and capture cleanup
+display. Forward/reverse navigation, frozen order and capture cleanup
 were checked live. Physical 5120×1440 and mixed-monitor behavior need hardware
 validation; their logical geometry is exercised offscreen.
 

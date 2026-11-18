@@ -201,8 +201,8 @@ Item {
     var selected = selectedWindow
     beginClose(selected && selected.toplevel ? selected.toplevel : originalToplevel)
   }
-  function cancel() { beginClose(originalToplevel) }
-  function close() { cancel() }
+  // Host lifecycle cleanup, independent of user-facing activation controls.
+  function close() { beginClose(originalToplevel) }
   function ping() { return "ok" }
   function status() {
     return JSON.stringify({ opened: opened, surfaceVisible: surfaceVisible,
@@ -313,14 +313,11 @@ Item {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     mask: Region { width: root.opened ? panel.width : 0; height: root.opened ? panel.height : 0 }
-    MouseArea { anchors.fill: parent; enabled: root.opened; onClicked: root.cancel() }
     SwitcherKeySurface {
       id: keySurface
       anchors.fill: parent
       releaseArmed: root.releaseArmed
       releaseActivation: root.releaseActivation
-      onCancelled: root.cancel()
-      onCommitted: root.commitSelected()
       onStepped: function(direction) { root.step(direction) }
       onModifierReleased: root.commitSelected()
       Rectangle {

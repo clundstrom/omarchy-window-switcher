@@ -1,7 +1,7 @@
 # Omarchy Workspace Switcher
 
-A compact MRU workspace switcher for Omarchy. Hold Super and press Tab to cycle
-through occupied regular workspaces; release Super to switch. Each card shows
+A compact MRU workspace switcher for Omarchy. Hold Alt and press Tab to cycle
+through occupied regular workspaces; release Alt to switch. Each card shows
 the workspace's native window composition. Left-click a card to switch to it.
 
 The strip follows the focused monitor, preserves preview aspect ratios, scrolls
@@ -32,21 +32,21 @@ omarchy restart shell
 
 The plugin ID remains `community.window-switcher` for installed compatibility.
 The bindings invoke the running plugin directly through Hyprland global
-shortcuts. They do not launch a command on each keypress. Alt+Tab's separate
-window navigation is unchanged. Bindings refer to logical Super; keyboard
-remapping can change which physical key produces it.
+shortcuts. They do not launch a command on each keypress. These defaults replace
+Omarchy's existing Alt+Tab window-navigation bindings with workspace switching.
+Bindings refer to logical Alt; keyboard remapping can change the physical key.
+For an Alt/Super-swapped setup, use `SUPER` in both cycling bindings and
+`Super_L`/`Super_R` in the modifier trackers instead.
 
 ## Controls
 
 | Input | Action |
 |---|---|
-| Super+Tab | Open or cycle forward in MRU order |
-| Super+Shift+Tab | Open or cycle backward |
+| Alt+Tab | Open or cycle forward in MRU order |
+| Alt+Shift+Tab | Open or cycle backward |
 | Tab / Shift+Tab while open | Cycle forward / backward |
-| Release Super | Activate the selected workspace |
+| Release Alt | Activate the selected workspace |
 | Left-click a workspace card | Activate that workspace |
-| Enter | Activate the selected workspace |
-| Escape or click outside | Cancel |
 
 The order stays fixed while the switcher is open. Pointer movement does not
 change the keyboard selection. Only occupied regular workspaces are listed.

@@ -20,11 +20,13 @@ assert.equal(manifest.entryPoints.overlay, 'Switcher.qml')
 for (const name of ['next-workspace', 'previous-workspace', 'modifier-left', 'modifier-right']) {
   assert.ok(switcher.includes(`"${name}"`), `native shortcut ${name} is registered`)
 }
-for (const key of ['Qt.Key_Tab', 'Qt.Key_Backtab', 'Qt.Key_Escape']) {
+for (const key of ['Qt.Key_Tab', 'Qt.Key_Backtab']) {
   assert.ok(keys.includes(key), `${key} remains available`)
 }
-assert.doesNotMatch(keys, /Qt\.Key_(?:F2|Delete|[0-9])\b|Qt\.ControlModifier/,
+assert.doesNotMatch(keys, /Qt\.Key_(?:Escape|Return|Enter|F2|Delete|[0-9])\b|Qt\.ControlModifier/,
   'the key surface contains only workspace switching controls')
+assert.doesNotMatch(switcher, /onCancelled:|onCommitted:|onClicked:\s*root\.cancel\(/,
+  'Enter, Escape and outside-click controls are removed')
 assert.match(card, /ScreencopyView\s*\{/, 'previews use native compositor capture')
 assert.match(card, /captureSource:\s*card\.captureEnabled/,
   'hidden/closed workspace cards detach their native sources')
