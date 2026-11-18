@@ -3,8 +3,8 @@
 ## One feature
 
 The plugin switches occupied regular workspaces in most-recently-used order.
-It retains forward/reverse cycling, modifier-release activation,
-left-click workspace activation and native workspace previews. Search, filters,
+It retains forward/reverse cycling, modifier-release activation
+and native workspace previews. Search, filters,
 individual-window navigation, alternate views, naming and window-close controls
 are outside this fork's scope.
 
@@ -20,8 +20,8 @@ and record reuse.
 The layer is keyboard-exclusive on the focused monitor. Native global shortcuts
 open/cycle the switcher without spawning a shell command. Separate modifier
 trackers cover releases that occur before the layer receives keyboard focus;
-the in-popup key surface also handles release. Clicks activate the workspace
-card, rather than an individual miniature. Pointer movement does not select.
+the in-popup key surface also handles release. Workspace selection and
+activation are keyboard-driven.
 
 ## Performance and privacy
 
@@ -50,7 +50,7 @@ PATH=/usr/lib/qt6/bin:$PATH ./test/all
 
 An offscreen geometry test cannot validate Wayland capture, actual colors or
 compositor focus. In the live session, check repeated forward/reverse cycling,
-quick modifier release, pointer movement, left-click activation,
+quick modifier release, pointer movement,
 workspace removal, tiled/floating/scrolling layouts and capture cleanup.
 Observe the actual overlay before claiming visual correctness. Check ordinary
 and ultrawide logical sizes, and test mixed-scale monitors when available.

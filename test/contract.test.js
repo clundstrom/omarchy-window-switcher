@@ -34,8 +34,8 @@ assert.match(card, /live:\s*false/, 'workspace thumbnails do not stream in the b
 assert.doesNotMatch(card + switcher, /Behavior on opacity|NumberAnimation/,
   'the high-frequency workspace overlay has no QML fade')
 assert.match(card, /constraintSize:/, 'capture requests are bounded to preview dimensions')
-assert.match(card, /onClicked:\s*card\.activated\(\)/,
-  'a left click activates the workspace card')
+assert.doesNotMatch(card + grid + switcher, /MouseArea\s*\{|cardActivated|signal activated\(/,
+  'mouse activation controls are removed from the workspace switcher')
 assert.match(card, /textFormat:\s*Text\.PlainText/,
   'compositor-controlled labels cannot load rich-text resources')
 assert.match(grid, /captureEnabled:[^\n]*switcherOpen[^\n]*inViewport/,

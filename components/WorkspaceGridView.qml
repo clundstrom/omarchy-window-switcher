@@ -11,7 +11,6 @@ GridView {
   required property int selectedIndex
   required property bool switcherOpen
   required property int captureLimit
-  signal cardActivated(int index)
   signal frameReady()
 
   clip: true
@@ -65,7 +64,6 @@ GridView {
       captureEnabled: view.switcherOpen && workspaceCell.inViewport
       captureStart: view.captureOffsets[workspaceCell.index] === undefined ? 0 : view.captureOffsets[workspaceCell.index]
       captureLimit: view.captureLimit
-      onActivated: view.cardActivated(workspaceCell.index)
       onFrameReady: view.frameReady()
     }
   }

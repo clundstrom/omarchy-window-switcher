@@ -331,7 +331,6 @@ Item {
         color: Commons.Util.alpha(Commons.Color.menu.background, Commons.Color.menu.background.a * appearance.backgroundOpacity)
         border.width: 1
         border.color: Commons.Util.alpha(Commons.Color.menu.border, 0.28)
-        MouseArea { anchors.fill: parent; onClicked: function(mouse) { mouse.accepted = true } }
         WorkspaceGridView {
           id: workspaceView
           anchors.fill: parent
@@ -343,10 +342,6 @@ Item {
           selectedIndex: root.selectedIndex
           switcherOpen: root.opened
           captureLimit: root.captureLimit
-          onCardActivated: function(index) {
-            root.selectedIndex = index
-            root.commitSelected()
-          }
           onFrameReady: {
             if (root.opened && root.firstFrameMs < 0) {
               root.firstFrameMs = Date.now() - root.openedAt

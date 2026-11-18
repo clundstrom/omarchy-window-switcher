@@ -13,7 +13,6 @@ Rectangle {
   required property bool captureEnabled
   required property int captureStart
   required property int captureLimit
-  signal activated()
   signal frameReady()
 
   readonly property var layout: WorkspaceModel.workspaceLayout(windows)
@@ -103,11 +102,5 @@ Rectangle {
     font.weight: card.selected ? Font.DemiBold : Font.Medium
     elide: Text.ElideRight
     maximumLineCount: 1
-  }
-  MouseArea {
-    anchors.fill: parent
-    acceptedButtons: Qt.LeftButton
-    cursorShape: Qt.PointingHandCursor
-    onClicked: card.activated()
   }
 }
