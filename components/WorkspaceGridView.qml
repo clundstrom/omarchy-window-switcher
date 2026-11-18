@@ -29,10 +29,11 @@ GridView {
     forceLayout()
     var entries = workspaceGroups || []
     if (selectedIndex >= entries.length) return
-    var left = selectedIndex * cellWidth
-    var right = left + cellWidth
-    var next = Math.min(contentX, left)
-    if (right > next + width) next = right - width
+    // Keep complete cards between the clipped neighbours, with selection near
+    // the centre. Clamp at either end to keep the first/last card complete.
+    var complete = Math.max(1, Math.floor(width / cellWidth))
+    var first = selectedIndex - Math.floor(complete / 2)
+    var next = first * cellWidth - (width - complete * cellWidth) / 2
     contentX = Math.max(0, Math.min(next, Math.max(0, entries.length * cellWidth - width)))
   }
   onSelectedIndexChanged: Qt.callLater(view.revealSelection)

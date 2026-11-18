@@ -50,6 +50,27 @@ QtObject {
     return { cardWidth: cardWidth, cardHeight: cardHeight, cellWidth: cardWidth + spacing, cellHeight: cardHeight }
   }
 
+  function rowMetricsFor(availableWidth, windows, availableHeight, workspaceCount) {
+    var metrics = metricsFor(availableWidth, windows, availableHeight)
+    var visible = Math.max(1, Math.min(maxVisible, workspaceCount))
+    var fits = workspaceCount <= maxVisible && workspaceCount * metrics.cellWidth <= availableWidth
+    if (fits) {
+      metrics.viewportWidth = visible * metrics.cellWidth
+      return metrics
+    }
+    // Keep a fifth of the neighbouring preview visible past the complete cards.
+    // Include its half-gap so the cue shows image content, not just spacing.
+    var peek = spacing / 2 + metrics.cardWidth * 0.2
+    if (metrics.cellWidth + peek > availableWidth) {
+      var cardLimit = Math.max(1, (availableWidth - spacing * 1.5) / 1.2)
+      metrics = metricsFor(cardLimit + spacing, windows, availableHeight)
+      peek = spacing / 2 + metrics.cardWidth * 0.2
+    }
+    visible = Math.max(1, Math.min(visible, Math.floor((availableWidth - peek) / metrics.cellWidth)))
+    metrics.viewportWidth = Math.min(availableWidth, visible * metrics.cellWidth + peek)
+    return metrics
+  }
+
   // This is the existing wallpaper file, decoded once in memory. FileView
   // watches it without loading its binary contents or creating another file.
   property Image wallpaperPreload: Image {

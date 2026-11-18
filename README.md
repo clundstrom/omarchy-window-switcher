@@ -29,9 +29,11 @@ theme. They are captured when needed rather than streamed in the background.
 The current Omarchy wallpaper fills the spaces between windows when available.
 
 The strip adapts to the monitor's size and scrolls to keep the selected
-workspace in view. It opens without a fade animation. Only regular workspaces
-containing windows that are not minimised appear. Their order stays fixed until
-you finish switching.
+workspace in view. When more workspaces are available, a slice of the next
+preview remains visible at the edge. The row keeps the same width as you cycle,
+and the selected preview stays complete. It opens without a fade animation.
+Only regular workspaces containing windows that are not minimised appear.
+Their order stays fixed until you finish switching.
 
 ## Installation
 
@@ -104,8 +106,10 @@ settings are:
 `thumbnailWidth` sets the preview width from 160 to 960 logical pixels before
 the shell's interface scaling. Height follows the monitor's proportions.
 Previews shrink when necessary to fit the available screen width or height.
-`maxVisible` limits how many cards fit in the row at once. `spacing` controls the gap between cards,
-`padding` controls the space around them, and `cornerRadius` sets how rounded
+`maxVisible` limits how many complete previews fit in the row at once. An
+additional partial preview indicates overflow. Smaller screens show fewer
+complete previews while retaining that cue. `spacing` controls the gap between
+cards, `padding` controls the space around them, and `cornerRadius` sets how rounded
 the preview borders are. `backgroundOpacity` controls how opaque the desktop
 backdrop is, combined with the current theme's transparency. `showWallpaper`
 controls the wallpaper inside previews. An unavailable or unsupported wallpaper

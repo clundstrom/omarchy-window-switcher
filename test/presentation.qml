@@ -11,17 +11,19 @@ Window {
   visible: true
   property int stage: 0
   property int failures: 0
-  property var cases: [[5120,1440,1],[5120,1440,12],[1920,1080,5],[1280,720,12],[960,540,12],[1920,1080,1],[1920,1080,0],[960,540,1,960]]
+  property real openingWidth: 0
+  property var cases: [[5120,1440,1],[5120,1440,5],[5120,1440,6],[5120,1440,12],[1920,1080,5],[1280,720,12],[960,540,12],[1920,1080,1],[1920,1080,0],[960,540,1,960],[960,540,6,960],[1920,1080,6,400,1]]
   Plugin.WorkspacePresentation { id: style }
   Plugin.WorkspaceGridView {
     id: grid
     windows: []
     workspaceGroups: []
     presentation: style
-    width: Math.min(test.width - 48, Math.max(1, Math.min(style.maxVisible, count)) * (style.thumbnailWidth + style.spacing))
+    width: metrics.viewportWidth
     height: metrics.cardHeight
-    metrics: style.metricsFor(width, windows, test.height - 48 - style.padding * 2)
-    selectedIndex: count - 1
+    metrics: style.rowMetricsFor(test.width - 48 - style.padding * 2,
+      windows, test.height - 48 - style.padding * 2, workspaceGroups.length)
+    selectedIndex: 0
     switcherOpen: true
     captureLimit: 0
   }
@@ -47,31 +49,76 @@ Window {
     check(style.backgroundOpacity === 0, "opacity lower bound")
     style.settings = original
   }
+  function clippedCard(atLeft) {
+    for (var i = 0; i < grid.workspaceGroups.length; i++) {
+      var card = cardAt(i)
+      if (!card) continue
+      var x = card.mapToItem(grid, 0, 0).x
+      if (atLeft && x < -1 && x + card.width > 4) return true
+      if (!atLeft && x < grid.width - 4 && x + card.width > grid.width + 1) return true
+    }
+    return false
+  }
+  function checkSelection() {
+    var card = cardAt(grid.selectedIndex)
+    check(grid.count === 0 || card !== null, "selected preview exists")
+    if (card) {
+      var x = card.mapToItem(grid, 0, 0).x
+      check(x >= -1 && x + card.width <= grid.width + 1, "selected preview stays complete")
+    }
+    check(Math.abs(grid.width - openingWidth) < 1, "navigation keeps row width fixed")
+    check(grid.width + style.padding * 2 <= test.width - 48 + 1, "row fits the screen width")
+    if (test.width === 5120 && grid.count >= 5) {
+      var complete = 0
+      for (var i = 0; i < grid.count; i++) {
+        var preview = cardAt(i)
+        if (!preview) continue
+        var left = preview.mapToItem(grid, 0, 0).x
+        if (left >= -1 && left + preview.width <= grid.width + 1) complete++
+      }
+      check(complete === 5, "wide screen retains five complete previews")
+    }
+    var overflowing = grid.workspaceGroups.length * grid.cellWidth > grid.width + 1
+    if (overflowing) {
+      if (grid.contentX > 1) check(clippedCard(true), "hidden workspaces have a leading preview slice")
+      if (grid.contentX + grid.width < grid.workspaceGroups.length * grid.cellWidth - 1)
+        check(clippedCard(false), "hidden workspaces have a trailing preview slice")
+    } else {
+      check(!clippedCard(true) && !clippedCard(false), "fitting rows have no clipped previews")
+    }
+  }
   Timer {
-    interval: 200
+    interval: 100
     running: true
     repeat: true
     onTriggered: {
-      if (test.stage % 2 === 0) {
-        if (test.stage / 2 >= test.cases.length) {
+      var phase = test.stage % 4
+      if (phase === 0) {
+        if (test.stage / 4 >= test.cases.length) {
           test.checkBounds()
           console.log("RESULT failures=" + test.failures)
           Qt.quit()
           return
         }
-        var c = test.cases[test.stage / 2]
+        var c = test.cases[test.stage / 4]
         test.width = c[0]; test.height = c[1]
-        if (c.length > 3) style.settings = { thumbnailWidth: c[3] }
+        style.settings = { thumbnailWidth: c.length > 3 ? c[3] : 400, maxVisible: c.length > 4 ? c[4] : 5 }
         var windows = []; var groups = []
         for (var i = 0; i < c[2]; i++) {
           windows.push({monitorRect: {x:0,y:0,width:c[0],height:c[1]}, rect:{x:0,y:0,width:c[0],height:c[1]}, workspaceId:i+1, toplevel:null, minimized:false})
           groups.push({id:i+1,key:String(i+1),label:"Workspace "+(i+1),startIndex:i,size:1})
         }
         grid.windows = windows; grid.workspaceGroups = groups
+        grid.selectedIndex = c[2] ? 0 : -1
+        test.openingWidth = grid.width
         Qt.callLater(function() {
           grid.revealSelection()
         })
+      } else if (phase === 1 || phase === 2) {
+        test.checkSelection()
+        grid.selectedIndex = phase === 1 ? Math.floor(grid.count / 2) : grid.count - 1
       } else {
+        test.checkSelection()
         test.check(grid.flow === GridView.FlowTopToBottom, "horizontal flow")
         test.check(grid.contentHeight <= grid.height + 1, "single row")
         var selected = grid.itemAtIndex(grid.selectedIndex)

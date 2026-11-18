@@ -47,6 +47,17 @@ cannot make the preview taller than a smaller monitor. Scrolling follows the
 selection using the plain workspace array and cell dimensions. It does not
 query Qt's native model getter during position updates.
 
+Overflow reserves roughly a fifth of a preview beyond the complete cards. The
+half-gap is included in that allowance so image content, rather than empty
+spacing, appears at the edge. When both ends have hidden workspaces, the extra
+space is split between them. Selection stays among the complete cards near the
+centre, and the content position is clamped at the first and last workspace.
+Row width depends on screen space, preview settings and workspace count, never
+selection. Small displays reduce the number of complete cards and, when needed,
+preview width to leave space for the cue. The existing visible-card capture
+budget also covers partially visible neighbours. No extra controls or motion
+are introduced.
+
 `setPreviewWidth` changes the width through the existing shell call interface
 without reloading the plugin or changing its history. It is temporary. Editing
 `compact.json` preserves the setting across restarts, but Omarchy may reload the
@@ -127,8 +138,11 @@ capture sources. Capture scheduling reads a plain input array rather than
 `GridView.model`: reading Qt's model getter from a content-position binding
 during model replacement caused a reproducible native crash in the test.
 
-The flat presentation passes eight offscreen layout cases, including 5120×1440,
-ordinary 16:9 sizes, overflow and a maximum-width preview on a 960×540 display.
+The presentation passes twelve offscreen layout cases, including 5120×1440,
+ordinary 16:9 sizes, five versus six workspaces, overflow, a one-card setting and
+maximum-width previews on a 960×540 display. Each case checks the first, middle
+and last selection, complete selected previews, visible slices in directions
+with hidden workspaces and constant row width during navigation.
 Input tests cover forward/reverse cycling, the opacity chord, excluded
 Backspace combinations and secondary-modifier release handling. These automated
 checks do not establish compositor capture or physical shortcut behaviour.
@@ -145,6 +159,12 @@ and inhibition. This test used virtual input for the focused key surface;
 physical opening-shortcut delivery was not remeasured. Normal desktop bindings
 were left unchanged. Numbers use the same subtle theme-coloured outline as
 Omarchy's image picker to stay readable over bright content.
+
+Overflow was inspected in the live desktop with six workspaces. Five complete
+previews and a slice of the sixth were visible at the start, with the slice on
+the opposite edge at the end. Forward/reverse wrapping, fixed opening order,
+live resizing, opacity toggling and capture/inhibition cleanup passed live
+checks. The preview slices reuse the existing native capture components.
 
 The scoped gesture guard was checked in the live session: inhibition became
 active with popup focus, Tab cycled selection, and closing released inhibition
@@ -306,6 +326,8 @@ retain compiled components after a plugin rescan. Files in the user plugin
 directory survive ordinary configuration reloads.
 
 ## Rollback
+
+The flat presentation before overflow cues is preserved at commit `86609ae`.
 
 To restore the Rust implementation's earlier compact appearance, use commit
 `1590d15` and restart the shell. Keep any uncommitted settings before changing

@@ -351,12 +351,10 @@ Item {
       Rectangle {
         id: strip
         anchors.centerIn: parent
-        readonly property var preferredMetrics: appearance.metricsFor(
+        readonly property var rowMetrics: appearance.rowMetricsFor(
           parent.width - Commons.Style.space(48) - appearance.padding * 2, root.windows,
-          parent.height - Commons.Style.space(48) - appearance.padding * 2)
-        width: Math.min(parent.width - Commons.Style.space(48),
-          Math.max(1, Math.min(appearance.maxVisible, root.groups.length))
-            * (preferredMetrics.cardWidth + appearance.spacing) + appearance.padding * 2)
+          parent.height - Commons.Style.space(48) - appearance.padding * 2, root.groups.length)
+        width: rowMetrics.viewportWidth + appearance.padding * 2
         height: workspaceView.metrics.cardHeight + appearance.padding * 2
         radius: appearance.cornerRadius
         color: "transparent"
@@ -366,7 +364,7 @@ Item {
           anchors.margins: appearance.padding
           workspaceGroups: root.groups
           windows: root.windows
-          metrics: appearance.metricsFor(width, root.windows, panel.height - Commons.Style.space(48) - appearance.padding * 2)
+          metrics: strip.rowMetrics
           presentation: appearance
           selectedIndex: root.selectedIndex
           switcherOpen: root.opened
