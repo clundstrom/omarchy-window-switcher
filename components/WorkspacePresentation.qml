@@ -10,6 +10,7 @@ QtObject {
   readonly property int thumbnailWidth: Commons.Style.space(number("thumbnailWidth", 800, 160, 960))
   readonly property int maxVisible: number("maxVisible", 5, 1, 8)
   readonly property bool wrapOverflow: settings.overflowMode === "wrap"
+  readonly property bool windowMode: settings.switchMode === "windows"
   readonly property int spacing: Commons.Style.space(number("spacing", 28, 4, 64))
   readonly property int padding: Commons.Style.space(number("padding", 24, 8, 48))
   readonly property int cornerRadius: Commons.Style.space(number("cornerRadius", 0, 0, 32))
@@ -19,7 +20,7 @@ QtObject {
   readonly property bool showWallpaper: typeof settings.showWallpaper === "boolean" ? settings.showWallpaper : true
   property string backgroundPath: Quickshell.env("HOME") + "/.local/state/omarchy/current/background"
   property int wallpaperVersion: 0
-  readonly property url wallpaperSource: showWallpaper
+  readonly property url wallpaperSource: showWallpaper && !windowMode
     ? Commons.Util.fileUrl(backgroundPath) + "?switcher=" + wallpaperVersion : ""
   property url sessionWallpaper: ""
 
@@ -35,7 +36,7 @@ QtObject {
   }
   function metricsFor(availableWidth, windows, availableHeight) {
     var aspect = 0
-    for (var i = 0; i < windows.length; i++) {
+    for (var i = 0; !windowMode && i < windows.length; i++) {
       var rect = windows[i] && windows[i].monitorRect
       if (rect && rect.width > 0 && rect.height > 0) {
         var candidate = rect.width / rect.height

@@ -16,6 +16,7 @@ Item {
   property var targetScreen: null
   property var originalToplevel: null
   property var pendingActivation: null
+  property string pendingActivationAddress: ""
   property var allWindows: []
   property var windows: []
   property var groups: []
@@ -39,8 +40,10 @@ Item {
   readonly property var selectedWindow: selectedIndex >= 0 && selectedIndex < groups.length
     ? windows[groups[selectedIndex].startIndex] : null
 
-  function noteLifecycle(event) {
-    lifecycleEvents = lifecycleEvents.concat([{ event: event, time: Date.now() }]).slice(-16)
+  function noteLifecycle(event, key) {
+    var entry = { event: event, time: Date.now() }
+    if (key) entry.key = String(key).slice(0, 128)
+    lifecycleEvents = lifecycleEvents.concat([entry]).slice(-16)
   }
   function currentToplevels() {
     try { return ToplevelManager.toplevels.values || [] } catch (error) { return [] }
@@ -57,7 +60,8 @@ Item {
     return result
   }
   function metadata(record) {
-    return { key: record.key, sourceToken: record.sourceToken, sourceIndex: record.sourceIndex,
+    return { key: record.key, title: appearance.windowMode ? record.title : "",
+      appId: appearance.windowMode ? record.appId : "", sourceToken: record.sourceToken, sourceIndex: record.sourceIndex,
       workspaceId: record.workspaceId, workspaceName: record.workspaceName,
       monitorId: record.monitorId, monitorName: record.monitorName, minimized: record.minimized,
       rect: record.rect, monitorRect: record.monitorRect }
@@ -74,7 +78,7 @@ Item {
       rows.push(record)
       if (record.toplevel === active) activeKey = record.key
     }
-    var result = coreCall("refresh", { rows: rows.map(metadata), mruKeys: mruKeys,
+    var result = coreCall("refresh", { windowMode: appearance.windowMode, rows: rows.map(metadata), mruKeys: mruKeys,
       workspaceHistory: workspaceMruKeys, frozenHistory: openWorkspaceMruKeys,
       focusedWorkspaceId: Hyprland.focusedWorkspace ? focusedWorkspaceId : null,
       activeKey: activeKey, opened: opened,
@@ -85,7 +89,7 @@ Item {
     workspaceMruKeys = result.workspaceHistory
     allWindows = result.windowOrder.map(function(index) { return rows[index] })
     if (!opened) return
-    if (initialDirection !== undefined) openWorkspaceMruKeys = result.frozenHistory
+    openWorkspaceMruKeys = result.frozenHistory
     if (!result.changed) return
     windows = result.workspaceOrder.map(function(index) { return rows[index] })
     groups = result.groups
@@ -161,6 +165,7 @@ Item {
     closeTick.stop()
     originalToplevel = ToplevelManager.activeToplevel
     pendingActivation = null
+    pendingActivationAddress = ""
     targetScreen = targetScreenForOpen()
     releaseActivation = activateOnRelease
     releaseArmed = false
@@ -181,9 +186,12 @@ Item {
       if (root.opened && root.modifierTrackingSeen) root.finishModifierRelease()
     })
   }
-  function beginClose(target) {
+  function beginClose(target, address) {
     if (!opened) return
     pendingActivation = target
+    var hexAddress = String(address || "").replace(/^0x/, "")
+    pendingActivationAddress = appearance.windowMode && /^[0-9a-fA-F]+$/.test(hexAddress)
+      ? "0x" + hexAddress : ""
     opened = false
     releaseArmed = false
     captureRamp.stop()
@@ -194,7 +202,7 @@ Item {
   }
   function commitSelected() {
     var selected = selectedWindow
-    beginClose(selected && selected.toplevel ? selected.toplevel : originalToplevel)
+    beginClose(selected && selected.toplevel ? selected.toplevel : originalToplevel, selected ? selected.address : "")
   }
   function activateWorkspace(key) {
     if (!opened) return
@@ -202,8 +210,8 @@ Item {
       if (String(groups[i].key) !== key) continue
       var target = windows[groups[i].startIndex]
       if (target && target.toplevel) {
-        noteLifecycle("workspace-clicked")
-        beginClose(target.toplevel)
+        noteLifecycle("workspace-clicked", key)
+        beginClose(target.toplevel, target.address)
       }
       return
     }
@@ -225,9 +233,14 @@ Item {
   }
   function ping() { return "ok" }
   function status() {
+    var workspaceKeys = groups.map(function(group) { return String(group.id) })
+      .filter(function(key, index, list) { return list.indexOf(key) === index })
     return JSON.stringify({ opened: opened, surfaceVisible: surfaceVisible,
-      windowCount: allWindows.length, workspaceCount: groups.length,
-      workspaceKeys: groups.map(function(group) { return group.key }),
+      windowCount: allWindows.length, workspaceCount: workspaceKeys.length,
+      switchMode: appearance.windowMode ? "windows" : "workspaces",
+      itemCount: groups.length, itemKeys: groups.map(function(group) { return group.key }),
+      selectedWindowKey: selectedWindow ? selectedWindow.key : "",
+      workspaceKeys: workspaceKeys,
       workspaceHistory: openWorkspaceMruKeys, liveWorkspaceHistory: workspaceMruKeys,
       selectedIndex: selectedIndex, selectedWorkspaceId: selectedWindow ? selectedWindow.workspaceId : null,
       focusedWorkspaceId: focusedWorkspaceId, targetScreen: targetScreen ? targetScreen.name : "",
@@ -241,7 +254,10 @@ Item {
   }
 
   Native.WorkspaceCore { id: workspaceCore }
-  WorkspacePresentation { id: appearance }
+  WorkspacePresentation {
+    id: appearance
+    onWindowModeChanged: if (root.opened) root.close()
+  }
   WindowRecords { id: records }
   GlobalShortcut {
     appid: "community.window-switcher"
@@ -273,6 +289,7 @@ Item {
   }
   CompositorSignals {
     switcherOpen: root.opened
+    windowMode: appearance.windowMode
     onRefreshRequested: modelRefresh.restart()
     onGeometryRefreshRequested: geometrySettle.restart()
     onGeometrySnapshotReceived: if (geometrySettle.running) root.geometryReady()
@@ -301,15 +318,23 @@ Item {
     onTriggered: {
       if (root.opened) return
       var target = root.pendingActivation
+      var address = root.pendingActivationAddress
       var serial = root.openSerial
       root.surfaceVisible = false
       root.windows = []
       root.groups = []
       root.originalToplevel = null
       root.pendingActivation = null
+      root.pendingActivationAddress = ""
       root.targetScreen = null
       noteLifecycle("hidden")
-      Qt.callLater(function() { if (serial === root.openSerial && !root.opened && target) target.activate() })
+      Qt.callLater(function() {
+        if (serial !== root.openSerial || root.opened || !target) return
+        // The foreign-toplevel path simulates pointer motion after activation.
+        // Explicit window focus preserves selection with focus-follows-mouse.
+        if (address) Hyprland.dispatch('hl.dsp.focus({ window = "address:' + address + '" })')
+        else target.activate()
+      })
     }
   }
   Timer { id: modelRefresh; interval: 24; onTriggered: root.rebuildWindows() }

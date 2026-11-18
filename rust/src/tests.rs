@@ -56,6 +56,135 @@ fn navigation_wraps_and_reverses() {
 }
 
 #[test]
+fn window_mode_keeps_individual_windows_in_recent_order() {
+    let mut input = opening(vec![window("a", 1), window("b", 1), window("c", 2)]);
+    input.window_mode = true;
+    input.active_key = Some("a".into());
+    input.mru_keys = strings(&["a", "c", "b"]);
+    let result = refresh(input);
+    assert_eq!(result.workspace_order, vec![0, 2, 1]);
+    assert_eq!(
+        result
+            .groups
+            .iter()
+            .map(|g| (g.key.as_str(), g.size))
+            .collect::<Vec<_>>(),
+        vec![("a", 1), ("c", 1), ("b", 1)]
+    );
+    assert_eq!(result.selected_index, 1);
+}
+
+#[test]
+fn window_mode_can_select_another_window_on_the_same_workspace() {
+    let mut input = opening(vec![window("a", 1), window("b", 1)]);
+    input.window_mode = true;
+    input.active_key = Some("a".into());
+    assert_eq!(refresh(input).groups[1].key, "b");
+}
+
+#[test]
+fn window_mode_excludes_special_minimized_and_unassociated_windows() {
+    let mut minimized = window("minimized", 2);
+    minimized.minimized = true;
+    let mut helper = window("helper", 1);
+    helper.workspace_id = None;
+    let mut special = window("special-name", 2);
+    special.workspace_name = "special:scratchpad".into();
+    let mut input = opening(vec![
+        window("visible", 1),
+        minimized,
+        helper,
+        special,
+        window("hidden", -97),
+    ]);
+    input.window_mode = true;
+    let result = refresh(input);
+    assert_eq!(result.groups.len(), 1);
+    assert_eq!(result.groups[0].key, "visible");
+    assert_eq!(result.frozen_history, strings(&["visible"]));
+}
+
+#[test]
+fn window_mode_freezes_order_and_appends_new_windows() {
+    let rows = vec![window("a", 1), window("b", 1), window("c", 2)];
+    let mut input = opening(rows.clone());
+    input.window_mode = true;
+    input.active_key = Some("a".into());
+    let first = refresh(input);
+    let mut next = rows.clone();
+    next.push(window("new", 2));
+    let result = refresh(Refresh {
+        window_mode: true,
+        rows: next,
+        mru_keys: strings(&["new", "c", "a", "b"]),
+        frozen_history: first.frozen_history,
+        previous_windows: rows,
+        opened: true,
+        active_key: Some("c".into()),
+        selected_key: "b".into(),
+        selected_index: 1,
+        ..Refresh::default()
+    });
+    assert_eq!(
+        result
+            .groups
+            .iter()
+            .map(|g| g.key.as_str())
+            .collect::<Vec<_>>(),
+        vec!["a", "b", "c", "new"]
+    );
+    assert_eq!(result.groups[result.selected_index as usize].key, "b");
+}
+
+#[test]
+fn window_mode_handles_reverse_opening_and_disappearing_sources() {
+    let mut input = opening(vec![window("a", 1), window("b", 1), window("c", 2)]);
+    input.window_mode = true;
+    input.active_key = Some("a".into());
+    input.opening_direction = Some(-1);
+    assert_eq!(refresh(input).selected_index, 2);
+    let result = refresh(Refresh {
+        window_mode: true,
+        rows: vec![window("a", 1)],
+        opened: true,
+        frozen_history: strings(&["a", "b"]),
+        selected_key: "b".into(),
+        selected_index: 1,
+        ..Refresh::default()
+    });
+    assert_eq!(result.selected_index, 0);
+    assert_eq!(result.groups[0].key, "a");
+}
+
+#[test]
+fn window_titles_are_bounded_without_recapturing_sources() {
+    let mut row = window("a", 1);
+    row.title = "x".repeat(600);
+    row.app_id = "application".into();
+    let mut input = opening(vec![row.clone()]);
+    input.window_mode = true;
+    assert_eq!(refresh(input).groups[0].label.len(), 512);
+    let mut changed = row.clone();
+    changed.title = "new title".into();
+    for mode in [false, true] {
+        let result = refresh(Refresh {
+            window_mode: mode,
+            rows: vec![changed.clone()],
+            previous_windows: vec![row.clone()],
+            frozen_history: strings(&[if mode { "a" } else { "1" }]),
+            opened: true,
+            selected_key: if mode { "a" } else { "1" }.into(),
+            selected_index: 0,
+            ..Refresh::default()
+        });
+        assert!(!result.changed);
+        if mode {
+            assert_eq!(result.groups[0].label, "new title");
+        }
+    }
+}
+
+#[test]
 fn history_prunes_duplicates_dead_sources_and_respects_limits() {
     let live = strings(&["a", "b", "c", "d"]);
     assert_eq!(

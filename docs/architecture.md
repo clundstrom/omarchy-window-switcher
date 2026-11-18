@@ -5,7 +5,7 @@ menus, notifications and lock screen share that process. Our plugin has its own
 overlay and state, but does not start a second desktop shell or background service.
 
 The interface uses Qt Modeling Language (QML) with small JavaScript handlers.
-Rust calculates workspace ordering, navigation and preview geometry. Quickshell's
+Rust calculates workspace or window ordering, navigation and workspace preview geometry. Quickshell's
 native components capture window images, and Qt Quick draws the result.
 
 ## Where the plugin fits
@@ -40,7 +40,7 @@ flowchart TB
     end
 
     Renderer -->|"Wayland overlay surface"| Compositor["Hyprland<br/>Desktop composition"]
-    Controller -.->|"activate selected workspace"| Compositor
+    Controller -.->|"activate selected target"| Compositor
     Compositor --> Display["Display"]
 ```
 
@@ -70,6 +70,12 @@ Rust receives plain metadata encoded as JavaScript Object Notation (JSON).
 It returns ordering, group information, indices and normalised coordinates.
 Navigation also has a direct integer method. No window handles or image buffers
 cross into Rust. The existing interface retains those handles and their lifetimes.
+
+`switchMode` selects workspace grouping or one card per window. Both modes use
+only non-minimised native windows assigned to regular workspaces. Window mode
+freezes recent-window order and returns one source index per card. Its native
+image is fitted without stretching into a landscape frame, with a plain-text
+title below it. Workspace mode retains its composed geometry and numeric labels.
 
 `WorkspaceCard.qml` places a native `ScreencopyView` at each window's position in
 the miniature workspace. The preview canvas clips content outside the monitor,
@@ -115,9 +121,16 @@ paced. There are at most 20 enabled capture sources. `live: false` requests
 snapshots rather than a continuous background stream.
 
 On modifier release, the controller disconnects capture sources, unmaps the
-overlay and activates a representative native window from the selected workspace.
+overlay and activates a representative native window from the selected workspace,
+or the exact selected window in window mode.
 Hyprland then shows that workspace. The controller remains loaded, while window
 records and capture delegates used by the open overlay are cleared.
+
+Window mode sends an explicit window-focus request over Quickshell's existing
+Hyprland connection after unmapping. It validates the compositor's hexadecimal
+address first. This avoids the foreign-toplevel path's pointer-refocus side
+effect with focus-follows-mouse settings. Workspace mode keeps native toplevel
+activation. Neither path starts a child process.
 
 ## Module guide
 

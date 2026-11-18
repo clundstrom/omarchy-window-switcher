@@ -5,14 +5,21 @@ Omarchy. Hold Alt and press Tab to open a row of workspace previews
 in the centre of the focused monitor. Keep pressing Tab to move through them,
 then release Alt to switch to the highlighted workspace.
 
-Workspace Switcher uses Rust for workspace history, ordering, selection and preview
+You can also configure it to switch between individual windows, in recent-use
+order, like a conventional Alt+Tab switcher. Window mode shows only open,
+non-minimised windows on regular workspaces. Scratchpads, special workspaces and
+windows with no regular workspace are excluded. It does not list processes or
+background services.
+
+Workspace Switcher uses Rust for recent-use history, ordering, selection and preview
 layout calculations. It keeps the existing Qt interface and window capture
 components. A small compiled module connects them, without running a separate
 background program.
 
 The interface shows flat previews over a dimmed desktop. Each preview has a
-workspace number underneath it. A thin theme-coloured border and a small dot
-mark the selected workspace. There are no titles, instructions or extra controls.
+workspace number underneath it, or a window title in window mode. A thin
+theme-coloured border and a small dot mark the selection. There are no headers,
+instructions or extra controls.
 
 <details>
 <summary>Screenshot of the earlier compact appearance</summary>
@@ -33,8 +40,9 @@ below on another row. They stay in place as you cycle, with only the selection
 border and dot changing. A scrolling layout is also available, with a slice of
 the next preview at the edge to show that more workspaces are available.
 It opens without a fade animation.
-Only regular workspaces containing windows that are not minimised appear.
-Their order stays fixed until you finish switching.
+Only eligible windows and workspaces appear. Their order stays fixed until you
+finish switching. Window previews preserve each window's proportions within
+the same cards, and use both overflow layouts and left-click activation.
 
 ## Installation
 
@@ -66,8 +74,8 @@ omarchy restart shell
 ```
 
 Resolve any errors reported by `hyprctl configerrors` before using the switcher.
-The supplied bindings replace Omarchy's Alt+Tab window navigation with workspace
-switching. The installed name remains `community.window-switcher` so existing
+The supplied bindings replace Omarchy's Alt+Tab navigation with this switcher's
+configured mode. The installed name remains `community.window-switcher` so existing
 installations can use this fork without changing their plugin settings.
 
 ## Using the switcher
@@ -101,6 +109,7 @@ settings are:
   "thumbnailWidth": 800,
   "maxVisible": 5,
   "overflowMode": "wrap",
+  "switchMode": "workspaces",
   "spacing": 28,
   "padding": 24,
   "cornerRadius": 0,
@@ -112,6 +121,10 @@ settings are:
 `thumbnailWidth` sets the preview width from 160 to 960 logical pixels before
 the shell's interface scaling. Height follows the monitor's proportions.
 Previews shrink when necessary to fit the available screen width or height.
+`switchMode` chooses `"workspaces"` or `"windows"`. Missing or unrecognised
+values use workspace mode. Save this setting between switching sessions; it
+applies on the next opening. Your keyboard bindings stay the same in both modes.
+
 `overflowMode` chooses how extra workspaces appear. Use `"wrap"` for stationary
 previews that continue onto a second row, and further rows when needed. The
 layout reduces preview size if the rows would otherwise exceed the screen.

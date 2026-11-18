@@ -31,4 +31,18 @@ TestCase {
     verify(call("unknown", {}).error !== undefined)
     verify(JSON.parse(core.evaluate("layout", "{")).error !== undefined)
   }
+  function test_individual_windows_only_on_regular_workspaces() {
+    var result = call("refresh", { windowMode: true, opened: true, openingDirection: 1,
+      activeKey: "a", rows: [
+        { key: "a", workspaceId: 1, title: "First" },
+        { key: "b", workspaceId: 1, title: "Second" },
+        { key: "scratchpad", workspaceId: -97 },
+        { key: "helper" }, { key: "minimized", workspaceId: 2, minimized: true }
+      ] })
+    compare(result.groups.length, 2)
+    compare(result.groups[1].key, "b")
+    compare(result.groups[1].size, 1)
+    compare(result.groups[1].label, "Second")
+    compare(result.selectedIndex, 1)
+  }
 }

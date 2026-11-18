@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "community.window-switcher",
   "name": "Workspace Switcher",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "author": "Workspace Switcher contributors",
-  "description": "Switch between recently used workspaces with a Rust core and themed previews",
+  "description": "Switch between recently used workspaces or open windows with themed previews",
   "license": "MIT",
   "kinds": [
     "overlay"

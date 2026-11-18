@@ -14,6 +14,7 @@ Window {
   property real openingWidth: 0
   property real openingHeight: 0
   property var openingPositions: []
+  property var windowCases: [[5120,1440,5],[3440,1440,6,800],[1920,1080,10,800],[960,540,12,800]]
   property var cases: [[5120,1440,1],[5120,1440,5],[5120,1440,6],[5120,1440,12],[1920,1080,5],[1280,720,12],[960,540,12],[1920,1080,1],[1920,1080,0],[960,540,1,960],[960,540,6,960],[1920,1080,6,400,1],[3440,1440,6,800],[1920,1080,10,800],[960,540,12,800]]
   Plugin.WorkspacePresentation { id: style }
   Plugin.WorkspaceGridView {
@@ -119,17 +120,21 @@ Window {
     onTriggered: {
       var phase = test.stage % 4
       if (phase === 0) {
-        if (test.stage / 4 >= test.cases.length * 2) {
+        if (test.stage / 4 >= (test.cases.length + test.windowCases.length) * 2) {
           test.checkBounds()
           console.log("RESULT failures=" + test.failures)
           Qt.quit()
           return
         }
         var caseIndex = test.stage / 4
-        var c = test.cases[caseIndex % test.cases.length]
+        var windowMode = caseIndex >= test.cases.length * 2
+        var pool = windowMode ? test.windowCases : test.cases
+        var localIndex = windowMode ? caseIndex - test.cases.length * 2 : caseIndex
+        var c = pool[localIndex % pool.length]
         test.width = c[0]; test.height = c[1]
         style.settings = { thumbnailWidth: c.length > 3 ? c[3] : 400, maxVisible: c.length > 4 ? c[4] : 5,
-          overflowMode: caseIndex >= test.cases.length ? "wrap" : "scroll" }
+          overflowMode: localIndex >= pool.length ? "wrap" : "scroll",
+          switchMode: windowMode ? "windows" : "workspaces" }
         var windows = []; var groups = []
         for (var i = 0; i < c[2]; i++) {
           windows.push({monitorRect: {x:0,y:0,width:c[0],height:c[1]}, rect:{x:0,y:0,width:c[0],height:c[1]}, workspaceId:i+1, toplevel:null, minimized:false})
@@ -175,7 +180,7 @@ Window {
         test.check(grid.height + style.padding * 2 < test.height, "strip fits vertically")
         test.check(grid.metrics.cardWidth <= style.thumbnailWidth, "cards respect preferred width")
         console.log("CHECK geometry " + test.width + "x" + test.height + " count=" + grid.count
-          + " mode=" + style.settings.overflowMode + " strip=" + grid.width + "x" + grid.height)
+          + " mode=" + style.settings.overflowMode + "/" + style.settings.switchMode + " strip=" + grid.width + "x" + grid.height)
       }
       test.stage++
     }

@@ -14,6 +14,8 @@ pub struct Rect {
 #[serde(default, rename_all = "camelCase")]
 pub struct Window {
     pub key: String,
+    pub title: String,
+    pub app_id: String,
     pub source_token: String,
     pub source_index: f64,
     pub workspace_id: Option<i64>,
@@ -28,6 +30,7 @@ pub struct Window {
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Refresh {
+    pub window_mode: bool,
     pub rows: Vec<Window>,
     pub mru_keys: Vec<String>,
     pub workspace_history: Vec<String>,
@@ -107,6 +110,12 @@ pub fn note_workspace(keys: &[String], workspace_id: Option<i64>) -> Vec<String>
     next
 }
 
+fn regular_window(row: &Window) -> bool {
+    !row.minimized
+        && row.workspace_id.is_some_and(|id| id > 0)
+        && !row.workspace_name.starts_with("special:")
+}
+
 fn same_preview(left: &Window, right: &Window) -> bool {
     left.key == right.key
         && left.source_token == right.source_token
@@ -117,6 +126,14 @@ fn same_preview(left: &Window, right: &Window) -> bool {
         && left.minimized == right.minimized
         && left.rect == right.rect
         && left.monitor_rect == right.monitor_rect
+}
+
+fn previews_changed(previous: &[Window], rows: &[Window], order: &[usize]) -> bool {
+    previous.len() != order.len()
+        || previous
+            .iter()
+            .zip(order)
+            .any(|(old, &index)| !same_preview(old, &rows[index]))
 }
 
 pub fn refresh(input: Refresh) -> Snapshot {
@@ -155,7 +172,15 @@ pub fn refresh(input: Refresh) -> Snapshot {
         }
     }
     let frozen_history = if input.opening_direction.is_some() {
-        workspace_history.clone()
+        if input.window_mode {
+            window_order
+                .iter()
+                .filter(|&&index| regular_window(&input.rows[index]))
+                .map(|&index| input.rows[index].key.clone())
+                .collect()
+        } else {
+            workspace_history.clone()
+        }
     } else {
         input.frozen_history
     };
@@ -176,13 +201,72 @@ pub fn refresh(input: Refresh) -> Snapshot {
         .window_order
         .iter()
         .copied()
-        .filter(|&index| {
-            let row = &input.rows[index];
-            !row.minimized
-                && row.workspace_id.is_some_and(|id| id > 0)
-                && !row.workspace_name.starts_with("special:")
-        })
+        .filter(|&index| regular_window(&input.rows[index]))
         .collect();
+    if input.window_mode {
+        // New eligible windows append without moving the frozen opening order.
+        for &index in &result.workspace_order {
+            let key = &input.rows[index].key;
+            if !result.frozen_history.contains(key) {
+                result.frozen_history.push(key.clone());
+            }
+        }
+        let positions: HashMap<&str, usize> = result
+            .frozen_history
+            .iter()
+            .enumerate()
+            .map(|(index, key)| (key.as_str(), index))
+            .collect();
+        result
+            .workspace_order
+            .sort_by_key(|&index| positions[input.rows[index].key.as_str()]);
+        for (index, &row_index) in result.workspace_order.iter().enumerate() {
+            let row = &input.rows[row_index];
+            let label = if !row.title.is_empty() {
+                &row.title
+            } else {
+                &row.app_id
+            };
+            result.groups.push(Group {
+                key: row.key.clone(),
+                id: row.workspace_id.unwrap_or_default(),
+                label: label.chars().take(512).collect(),
+                start_index: index,
+                size: 1,
+            });
+        }
+        result.changed = input.opening_direction.is_some()
+            || previews_changed(
+                &input.previous_windows,
+                &input.rows,
+                &result.workspace_order,
+            );
+        let count = result.groups.len() as i32;
+        let find = |key: &str| {
+            result
+                .groups
+                .iter()
+                .position(|group| group.key == key)
+                .map(|index| index as i32)
+        };
+        result.selected_index = if count == 0 {
+            -1
+        } else if let Some(direction) = input.opening_direction {
+            let active = input.active_key.as_deref().and_then(find);
+            if direction == 0 {
+                active.unwrap_or(0)
+            } else {
+                step(
+                    active.unwrap_or(if direction < 0 { 0 } else { -1 }),
+                    direction,
+                    count,
+                )
+            }
+        } else {
+            find(&input.selected_key).unwrap_or_else(|| input.selected_index.clamp(0, count - 1))
+        };
+        return result;
+    }
     result.workspace_order.sort_by(|&left, &right| {
         let a = &input.rows[left];
         let b = &input.rows[right];
@@ -222,12 +306,11 @@ pub fn refresh(input: Refresh) -> Snapshot {
         }
     }
     result.changed = input.opening_direction.is_some()
-        || input.previous_windows.len() != result.workspace_order.len()
-        || input
-            .previous_windows
-            .iter()
-            .zip(&result.workspace_order)
-            .any(|(old, &index)| !same_preview(old, &input.rows[index]));
+        || previews_changed(
+            &input.previous_windows,
+            &input.rows,
+            &result.workspace_order,
+        );
     let count = result.groups.len() as i32;
     let find = |key: &str| {
         result

@@ -1,12 +1,40 @@
 # Design and maintenance
 
-## One feature
+## Switching modes
 
-The plugin switches occupied regular workspaces in most-recently-used order.
+The plugin switches occupied regular workspaces in most-recently-used order,
+or individual windows when `switchMode` is `windows`.
 It retains forward/reverse cycling, modifier-release activation
 and native workspace previews. Search, filters,
-individual-window navigation, alternate views, naming and window-close controls
+unused alternate view components, naming and window-close controls
 are outside this fork's scope.
+
+Window mode reuses the same native handles, recent-window history, capture
+components, input surface and close-and-activate path. It filters out minimised
+windows, non-positive workspace IDs, special workspace names and unassociated
+handles. It never enumerates processes or desktop entries. Each eligible window
+becomes one group, even when several windows share a workspace. The complete
+opening order is frozen; newly opened windows append until the next invocation.
+Forward/reverse cycling and selection after a window closes use the same native
+core. The first forward step selects the previous eligible window, while a
+reverse opening selects the other end of the recent-use order.
+
+Window cards use a landscape frame and fit the whole window without stretching
+it. Their captions use bounded native titles, with the application identifier
+as fallback, and remain plain text. No application icon lookup is required.
+Caption bindings follow the native title without replacing the preview model
+or recapturing images when a title changes.
+Workspace geometry and its numeric captions are unchanged. Existing native
+shortcut names retain `workspace` for compatibility, but operate on the
+configured mode. A mode change closes an open session and applies on reopening.
+
+Window mode uses Hyprland's native window-focus dispatcher after unmapping the
+overlay. The foreign-toplevel activation path simulates pointer motion in the
+tested compositor, which can focus another tiled window when pointer warping
+is disabled and focus follows the mouse. Explicit focus avoids that behaviour
+without changing desktop settings. Only validated hexadecimal compositor
+addresses enter the dispatcher string. Workspace mode retains its existing
+native toplevel activation path.
 
 `manifest.json` keeps the overlay loaded so MRU history survives between uses.
 `Switcher.qml` owns selection, frozen opening order, activation and the layer
@@ -206,6 +234,18 @@ kept the clicked workspace active. Captures and inhibition were released in
 both modes. The pointer helper was used only for testing and is not part of the
 plugin or its dependencies. No live right-click gesture was attempted.
 
+The optional window mode passed 22 Rust tests, the native interface and input
+checks, Clippy and 38 layout cases across switching and overflow modes. Its
+live preview list matched seven mapped windows on four regular workspaces,
+excluding the special-workspace handle. The actual cards and titles were
+inspected in memory. Live tests in both overflow layouts confirmed exact-window
+click activation between two windows on the same workspace while a modifier
+was held, no override on modifier release, keyboard-selection activation and
+capture/inhibitor cleanup. The first test exposed the pointer-refocus issue
+described above; the window-mode dispatcher path passed the repeated check.
+Workspace mode, 800-pixel previews and the original focus were restored after
+testing.
+
 The scoped gesture guard was checked in the live session: inhibition became
 active with popup focus, Tab cycled selection, and closing released inhibition
 and all capture sources. The normal desktop resize binding remains installed.
@@ -366,6 +406,8 @@ retain compiled components after a plugin rescan. Files in the user plugin
 directory survive ordinary configuration reloads.
 
 ## Rollback
+
+Commit `c472a9b` preserves workspace-only switching with left-click activation.
 
 Commit `516bab9` preserves the larger previews before wrapped overflow was added.
 

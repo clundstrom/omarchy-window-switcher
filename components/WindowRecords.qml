@@ -88,6 +88,8 @@ QtObject {
     var focusHistoryId = Number(ipc.focusHistoryID)
     if (!isFinite(focusHistoryId) || focusHistoryId < 0) focusHistoryId = sourceIndex
     var record = {
+      title: boundedLabel(toplevel && toplevel.title, 512),
+      appId: boundedLabel(toplevel && toplevel.appId, 256),
       key: address ? hyprlandKeyPrefix + address : fallbackKeyFor(toplevel),
       sourceIndex: focusHistoryId,
       sourceToken: fallbackKeyFor(toplevel),
@@ -107,6 +109,13 @@ QtObject {
       minimized: toplevel && toplevel.minimized === true
     }
     return record
+  }
+
+  function boundedLabel(value, limit) {
+    var text = String(value || "").slice(0, limit)
+    // Keep a truncated UTF-16 surrogate pair valid for the Rust JSON boundary.
+    var last = text.charCodeAt(text.length - 1)
+    return last >= 0xd800 && last <= 0xdbff ? text.slice(0, -1) : text
   }
 
 }

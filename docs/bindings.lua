@@ -1,7 +1,7 @@
 -- Add to ~/.config/hypr/bindings.lua. These replace Omarchy's Alt+Tab window
--- navigation with workspace switching.
-o.rebind("ALT + TAB", "Workspace previews: next recent", hl.dsp.global("community.window-switcher:next-workspace"), { dont_inhibit = true })
-o.rebind("ALT + SHIFT + TAB", "Workspace previews: previous recent", hl.dsp.global("community.window-switcher:previous-workspace"), { dont_inhibit = true })
+-- navigation with the configured workspace or window switching mode.
+o.rebind("ALT + TAB", "Switcher: next recent", hl.dsp.global("community.window-switcher:next-workspace"), { dont_inhibit = true })
+o.rebind("ALT + SHIFT + TAB", "Switcher: previous recent", hl.dsp.global("community.window-switcher:previous-workspace"), { dont_inhibit = true })
 
 -- Track modifier release even before the popup receives keyboard focus.
 -- These bindings do not consume Alt or interfere with other Alt chords.

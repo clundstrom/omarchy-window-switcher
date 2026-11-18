@@ -73,4 +73,8 @@ assert.match(switcher, /onModifierReleased:\s*root\.finishModifierRelease\(\)/,
   'secondary modifier release cannot commit while the workspace modifier remains held')
 assert.match(card, /String\(card\.groupData\.id\)/,
   'workspace captions contain only the workspace number')
+assert.ok(switcher.includes('appearance.windowMode && /^[0-9a-fA-F]+$/.test(hexAddress)'),
+  'window focus commands accept only validated compositor addresses')
+assert.match(switcher, /if \(address\) Hyprland\.dispatch[\s\S]*else target\.activate\(\)/,
+  'exact window focus is scoped to window mode and preserves workspace activation')
 console.log('ok - workspace plugin boundaries')
