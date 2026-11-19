@@ -5,7 +5,7 @@ menus, notifications and lock screen share that process. Our plugin has its own
 overlay and state, but does not start a second desktop shell or background service.
 
 The interface uses Qt Modeling Language (QML) with small JavaScript handlers.
-Rust calculates workspace or window ordering, navigation and workspace preview geometry. Quickshell's
+Rust calculates workspace, window or application ordering, navigation and workspace preview geometry. Quickshell's
 native components capture window images, and Qt Quick draws the result.
 
 ## Where the plugin fits
@@ -24,12 +24,14 @@ flowchart TB
             Records["WindowRecords<br/>CompositorSignals"]
             Controller["Switcher.qml<br/>State and lifecycle"]
             Core["Native module<br/>C++ adapter and Rust core"]
-            View["WorkspaceGridView<br/>WorkspaceCard"]
+            View["WorkspaceGridView<br/>WorkspaceCard or ApplicationCard"]
+            Apps["ApplicationMetadata<br/>Shared desktop application index"]
         end
 
         Renderer["Qt Quick renderer<br/>Graphics thread and driver"]
         Host -->|"loads"| Controller
         Integration -->|"window metadata"| Records
+        Apps -->|"names and icons in application mode"| Records
         Records --> Controller
         Integration -->|"shortcuts"| Controller
         Controller <-->|"plain metadata and results"| Core
@@ -71,11 +73,23 @@ It returns ordering, group information, indices and normalised coordinates.
 Navigation also has a direct integer method. No window handles or image buffers
 cross into Rust. The existing interface retains those handles and their lifetimes.
 
-`switchMode` selects workspace grouping or one card per window. Both modes use
+`switchMode` selects workspace grouping, one card per window or one icon per
+application. All modes use
 only non-minimised native windows assigned to regular workspaces. Window mode
 freezes recent-window order and returns one source index per card. Its native
 image is fitted without stretching into a landscape frame, with a plain-text
 title below it. Workspace mode retains its composed geometry and numeric labels.
+
+`ApplicationMetadata.qml` resolves only applications that own eligible windows,
+using Quickshell’s existing desktop entry index. Lookups are bounded and cached
+in memory. Matching desktop entry identifiers group window identifiers that
+belong to the same application. Rust orders applications by their most recently
+used eligible window and keeps their opening order fixed while choosing.
+`ApplicationCard.qml` renders an icon and the selected application’s name.
+A Loader creates either this card or the preview card, so icon mode creates no
+window capture objects and does not run the capture scheduler. Icon sources
+are limited to local files and the native theme icon provider. No desktop entry
+is executed or used to launch a new window.
 
 `WorkspaceCard.qml` places a native `ScreencopyView` at each window's position in
 the miniature workspace. The preview canvas clips content outside the monitor,
@@ -122,11 +136,12 @@ snapshots rather than a continuous background stream.
 
 On modifier release, the controller disconnects capture sources, unmaps the
 overlay and activates a representative native window from the selected workspace,
-or the exact selected window in window mode.
+or the exact selected window in window mode. Application mode targets the most
+recent eligible window belonging to the selected application.
 Hyprland then shows that workspace. The controller remains loaded, while window
 records and capture delegates used by the open overlay are cleared.
 
-Window mode sends an explicit window-focus request over Quickshell's existing
+Window and application modes send an explicit window-focus request over Quickshell's existing
 Hyprland connection after unmapping. It validates the compositor's hexadecimal
 address first. This avoids the foreign-toplevel path's pointer-refocus side
 effect with focus-follows-mouse settings. Workspace mode keeps native toplevel
@@ -143,6 +158,8 @@ activation. Neither path starts a child process.
 | [`SwitcherKeySurface.qml`](../components/SwitcherKeySurface.qml) | Cycling, modifier release and the opacity shortcut inside the overlay. |
 | [`WorkspaceTapTarget.qml`](../components/WorkspaceTapTarget.qml) | Left-click activation on release, with drag cancellation and no hover selection. |
 | [`WorkspaceGridView.qml`](../components/WorkspaceGridView.qml) | Scrolling or stationary wrapped layout, selection visibility and capture priority. |
+| [`ApplicationMetadata.qml`](../components/ApplicationMetadata.qml) | Application-only desktop metadata lookup, safe icon sources and a bounded memory cache. |
+| [`ApplicationCard.qml`](../components/ApplicationCard.qml) | One application icon with selection and click activation, without window captures. |
 | [`WorkspaceCard.qml`](../components/WorkspaceCard.qml) | Composes wallpaper and native window images at Rust-calculated positions, with a workspace number and selection marker. |
 | [`WorkspacePresentation.qml`](../components/WorkspacePresentation.qml) and [`compact.json`](../compact.json) | Bounded appearance settings, display proportions, wallpaper preloading and file watching. |
 | [`WorkspaceCore.qml`](../native/WorkspaceCore.qml) and [`coreplugin.cpp`](../native/coreplugin.cpp) | Expose the compiled core as a Qt object. CXX generates the bridge between C++ and Rust. |

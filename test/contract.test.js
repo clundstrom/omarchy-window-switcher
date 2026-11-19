@@ -73,8 +73,17 @@ assert.match(switcher, /onModifierReleased:\s*root\.finishModifierRelease\(\)/,
   'secondary modifier release cannot commit while the workspace modifier remains held')
 assert.match(card, /String\(card\.groupData\.id\)/,
   'workspace captions contain only the workspace number')
-assert.ok(switcher.includes('appearance.windowMode && /^[0-9a-fA-F]+$/.test(hexAddress)'),
+assert.ok(switcher.includes('appearance.windowTargets && /^[0-9a-fA-F]+$/.test(hexAddress)'),
   'window focus commands accept only validated compositor addresses')
 assert.match(switcher, /if \(address\) Hyprland\.dispatch[\s\S]*else target\.activate\(\)/,
-  'exact window focus is scoped to window mode and preserves workspace activation')
+  'exact window focus is scoped to window targets and preserves workspace activation')
+const appCard = read('components/ApplicationCard.qml')
+assert.doesNotMatch(appCard, /ScreencopyView|WorkspaceCore|Process\s*\{/,
+  'application icons do not create captures, native model instances or processes')
+assert.match(appCard, /textFormat:\s*Text\.PlainText/,
+  'application names are rendered as plain text')
+assert.match(grid, /if \(presentation\.applicationMode\) return offsets/,
+  'application mode schedules no native image captures')
+assert.match(switcher, /applicationMetadata:\s*appearance\.applicationMode \? appMetadata : null/,
+  'application lookups stay out of existing preview modes')
 console.log('ok - workspace plugin boundaries')

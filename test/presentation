@@ -8,7 +8,7 @@ trap 'rm -rf -- "$test_dir"' EXIT
 ln -s "$OMARCHY_SOURCE/shell/Commons" "$test_dir/Commons"
 ln -s "$PLUGIN_DIR" "$test_dir/plugin"
 cp "$PLUGIN_DIR/test/presentation.qml" "$test_dir/shell.qml"
-if ! QT_QPA_PLATFORM=offscreen timeout 25s quickshell -p "$test_dir" > "$test_dir/result.log" 2>&1; then
+if ! QT_QPA_PLATFORM=offscreen timeout 35s quickshell -p "$test_dir" > "$test_dir/result.log" 2>&1; then
   cat "$test_dir/result.log" >&2
   exit 1
 fi

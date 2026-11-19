@@ -11,6 +11,9 @@ QtObject {
   readonly property int maxVisible: number("maxVisible", 5, 1, 8)
   readonly property bool wrapOverflow: settings.overflowMode === "wrap"
   readonly property bool windowMode: settings.switchMode === "windows"
+  readonly property bool applicationMode: settings.switchMode === "applications"
+  readonly property bool windowTargets: windowMode || applicationMode
+  readonly property int appIconSize: Commons.Style.space(number("appIconSize", 96, 48, 192))
   readonly property int spacing: Commons.Style.space(number("spacing", 28, 4, 64))
   readonly property int padding: Commons.Style.space(number("padding", 24, 8, 48))
   readonly property int cornerRadius: Commons.Style.space(number("cornerRadius", 0, 0, 32))
@@ -20,7 +23,7 @@ QtObject {
   readonly property bool showWallpaper: typeof settings.showWallpaper === "boolean" ? settings.showWallpaper : true
   property string backgroundPath: Quickshell.env("HOME") + "/.local/state/omarchy/current/background"
   property int wallpaperVersion: 0
-  readonly property url wallpaperSource: showWallpaper && !windowMode
+  readonly property url wallpaperSource: showWallpaper && !windowTargets
     ? Commons.Util.fileUrl(backgroundPath) + "?switcher=" + wallpaperVersion : ""
   property url sessionWallpaper: ""
 
@@ -35,6 +38,12 @@ QtObject {
       ? Math.max(low, Math.min(high, value)) : fallback
   }
   function metricsFor(availableWidth, windows, availableHeight) {
+    if (applicationMode) {
+      var iconHeightLimit = typeof availableHeight === "number" && availableHeight > 0 ? availableHeight : Infinity
+      var side = Math.max(1, Math.min(appIconSize + Commons.Style.space(32),
+        availableWidth - spacing, iconHeightLimit - labelHeight))
+      return { cardWidth: side, cardHeight: side + labelHeight, cellWidth: side + spacing, cellHeight: side + labelHeight }
+    }
     var aspect = 0
     for (var i = 0; !windowMode && i < windows.length; i++) {
       var rect = windows[i] && windows[i].monitorRect
@@ -54,8 +63,9 @@ QtObject {
 
   function rowMetricsFor(availableWidth, windows, availableHeight, workspaceCount) {
     var metrics = metricsFor(availableWidth, windows, availableHeight)
-    var visible = Math.max(1, Math.min(maxVisible, workspaceCount))
-    var fits = workspaceCount <= maxVisible && workspaceCount * metrics.cellWidth <= availableWidth
+    var limit = applicationMode ? Math.max(1, workspaceCount) : maxVisible
+    var visible = Math.max(1, Math.min(limit, workspaceCount))
+    var fits = workspaceCount <= limit && workspaceCount * metrics.cellWidth <= availableWidth
     if (fits) {
       metrics.viewportWidth = visible * metrics.cellWidth
       return metrics
@@ -80,7 +90,7 @@ QtObject {
       return row
     }
     var preferred = metricsFor(availableWidth, windows, availableHeight)
-    var limit = Math.max(1, Math.min(maxVisible, workspaceCount))
+    var limit = Math.max(1, Math.min(applicationMode ? workspaceCount : maxVisible, workspaceCount))
     var columns = Math.max(1, Math.min(limit, Math.floor(availableWidth / preferred.cellWidth)))
     var rows = Math.max(1, Math.ceil(workspaceCount / columns))
     var gap = rows > 1 ? spacing : 0

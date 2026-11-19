@@ -60,8 +60,10 @@ Item {
     return result
   }
   function metadata(record) {
-    return { key: record.key, title: appearance.windowMode ? record.title : "",
-      appId: appearance.windowMode ? record.appId : "", sourceToken: record.sourceToken, sourceIndex: record.sourceIndex,
+    return { key: record.key, title: appearance.windowTargets ? record.title : "",
+      appId: appearance.windowTargets ? record.appId : "",
+      appKey: record.appKey, appName: record.appName, appIcon: record.appIcon,
+      sourceToken: record.sourceToken, sourceIndex: record.sourceIndex,
       workspaceId: record.workspaceId, workspaceName: record.workspaceName,
       monitorId: record.monitorId, monitorName: record.monitorName, minimized: record.minimized,
       rect: record.rect, monitorRect: record.monitorRect }
@@ -78,7 +80,8 @@ Item {
       rows.push(record)
       if (record.toplevel === active) activeKey = record.key
     }
-    var result = coreCall("refresh", { windowMode: appearance.windowMode, rows: rows.map(metadata), mruKeys: mruKeys,
+    var result = coreCall("refresh", { windowMode: appearance.windowMode, applicationMode: appearance.applicationMode,
+      rows: rows.map(metadata), mruKeys: mruKeys,
       workspaceHistory: workspaceMruKeys, frozenHistory: openWorkspaceMruKeys,
       focusedWorkspaceId: Hyprland.focusedWorkspace ? focusedWorkspaceId : null,
       activeKey: activeKey, opened: opened,
@@ -141,7 +144,7 @@ Item {
   function beginCaptureRamp() {
     captureRamp.stop()
     captureLimit = 0
-    if (opened && windows.length) captureRamp.start()
+    if (opened && windows.length && !appearance.applicationMode) captureRamp.start()
   }
   function geometryReady() {
     if (!opened) return
@@ -190,7 +193,7 @@ Item {
     if (!opened) return
     pendingActivation = target
     var hexAddress = String(address || "").replace(/^0x/, "")
-    pendingActivationAddress = appearance.windowMode && /^[0-9a-fA-F]+$/.test(hexAddress)
+    pendingActivationAddress = appearance.windowTargets && /^[0-9a-fA-F]+$/.test(hexAddress)
       ? "0x" + hexAddress : ""
     opened = false
     releaseArmed = false
@@ -233,11 +236,11 @@ Item {
   }
   function ping() { return "ok" }
   function status() {
-    var workspaceKeys = groups.map(function(group) { return String(group.id) })
+    var workspaceKeys = windows.map(function(window) { return String(window.workspaceId) })
       .filter(function(key, index, list) { return list.indexOf(key) === index })
     return JSON.stringify({ opened: opened, surfaceVisible: surfaceVisible,
       windowCount: allWindows.length, workspaceCount: workspaceKeys.length,
-      switchMode: appearance.windowMode ? "windows" : "workspaces",
+      switchMode: appearance.applicationMode ? "applications" : (appearance.windowMode ? "windows" : "workspaces"),
       itemCount: groups.length, itemKeys: groups.map(function(group) { return group.key }),
       selectedWindowKey: selectedWindow ? selectedWindow.key : "",
       workspaceKeys: workspaceKeys,
@@ -257,8 +260,20 @@ Item {
   WorkspacePresentation {
     id: appearance
     onWindowModeChanged: if (root.opened) root.close()
+    onApplicationModeChanged: {
+      if (root.opened) root.close()
+      modelRefresh.restart()
+    }
   }
-  WindowRecords { id: records }
+  ApplicationMetadata {
+    id: appMetadata
+    enabled: appearance.applicationMode
+    onRefreshed: modelRefresh.restart()
+  }
+  WindowRecords {
+    id: records
+    applicationMetadata: appearance.applicationMode ? appMetadata : null
+  }
   GlobalShortcut {
     appid: "community.window-switcher"
     name: "next-workspace"
@@ -345,7 +360,7 @@ Item {
     // Start the first batch once geometry is ready, then pace later batches.
     triggeredOnStart: true
     onTriggered: {
-      if (!root.opened) { stop(); return }
+      if (!root.opened || appearance.applicationMode) { stop(); return }
       var target = Math.min(root.captureBudget, root.windows.length)
       root.captureLimit = Math.min(target, root.captureLimit + 2)
       if (root.captureLimit >= target) stop()
@@ -393,8 +408,10 @@ Item {
           parent.height - Commons.Style.space(48) - appearance.padding * 2, root.groups.length)
         width: rowMetrics.viewportWidth + appearance.padding * 2
         height: rowMetrics.viewportHeight + appearance.padding * 2
-        radius: appearance.cornerRadius
-        color: "transparent"
+        radius: appearance.applicationMode ? Commons.Style.space(20) : appearance.cornerRadius
+        color: appearance.applicationMode ? Commons.Util.alpha(Commons.Color.menu.background, 0.9) : "transparent"
+        border.width: appearance.applicationMode ? Commons.Style.spacing.hairline : 0
+        border.color: Commons.Util.alpha(Commons.Color.foreground, 0.15)
         WorkspaceGridView {
           id: workspaceView
           anchors.fill: parent

@@ -16,6 +16,9 @@ pub struct Window {
     pub key: String,
     pub title: String,
     pub app_id: String,
+    pub app_key: String,
+    pub app_name: String,
+    pub app_icon: String,
     pub source_token: String,
     pub source_index: f64,
     pub workspace_id: Option<i64>,
@@ -31,6 +34,7 @@ pub struct Window {
 #[serde(default, rename_all = "camelCase")]
 pub struct Refresh {
     pub window_mode: bool,
+    pub application_mode: bool,
     pub rows: Vec<Window>,
     pub mru_keys: Vec<String>,
     pub workspace_history: Vec<String>,
@@ -116,6 +120,33 @@ fn regular_window(row: &Window) -> bool {
         && !row.workspace_name.starts_with("special:")
 }
 
+fn target_key(row: &Window, application_mode: bool) -> String {
+    if !application_mode {
+        return row.key.clone();
+    }
+    let id = if row.app_key.is_empty() {
+        &row.app_id
+    } else {
+        &row.app_key
+    };
+    if id.is_empty() {
+        format!("window:{}", row.key)
+    } else {
+        format!("app:{id}")
+    }
+}
+
+fn same_application(left: &Window, right: &Window) -> bool {
+    left.key == right.key
+        && left.source_token == right.source_token
+        && left.workspace_id == right.workspace_id
+        && left.minimized == right.minimized
+        && left.app_id == right.app_id
+        && left.app_key == right.app_key
+        && left.app_name == right.app_name
+        && left.app_icon == right.app_icon
+}
+
 fn same_preview(left: &Window, right: &Window) -> bool {
     left.key == right.key
         && left.source_token == right.source_token
@@ -172,11 +203,13 @@ pub fn refresh(input: Refresh) -> Snapshot {
         }
     }
     let frozen_history = if input.opening_direction.is_some() {
-        if input.window_mode {
+        if input.window_mode || input.application_mode {
+            let mut seen = HashSet::new();
             window_order
                 .iter()
                 .filter(|&&index| regular_window(&input.rows[index]))
-                .map(|&index| input.rows[index].key.clone())
+                .map(|&index| target_key(&input.rows[index], input.application_mode))
+                .filter(|key| seen.insert(key.clone()))
                 .collect()
         } else {
             workspace_history.clone()
@@ -203,10 +236,15 @@ pub fn refresh(input: Refresh) -> Snapshot {
         .copied()
         .filter(|&index| regular_window(&input.rows[index]))
         .collect();
-    if input.window_mode {
+    if input.window_mode || input.application_mode {
+        let target_keys: Vec<String> = input
+            .rows
+            .iter()
+            .map(|row| target_key(row, input.application_mode))
+            .collect();
         // New eligible windows append without moving the frozen opening order.
         for &index in &result.workspace_order {
-            let key = &input.rows[index].key;
+            let key = &target_keys[index];
             if !result.frozen_history.contains(key) {
                 result.frozen_history.push(key.clone());
             }
@@ -219,28 +257,48 @@ pub fn refresh(input: Refresh) -> Snapshot {
             .collect();
         result
             .workspace_order
-            .sort_by_key(|&index| positions[input.rows[index].key.as_str()]);
+            .sort_by_key(|&index| positions[target_keys[index].as_str()]);
         for (index, &row_index) in result.workspace_order.iter().enumerate() {
             let row = &input.rows[row_index];
-            let label = if !row.title.is_empty() {
+            let key = &target_keys[row_index];
+            let label = if input.application_mode && !row.app_name.is_empty() {
+                &row.app_name
+            } else if input.application_mode && !row.app_id.is_empty() {
+                &row.app_id
+            } else if !row.title.is_empty() {
                 &row.title
             } else {
                 &row.app_id
             };
-            result.groups.push(Group {
-                key: row.key.clone(),
-                id: row.workspace_id.unwrap_or_default(),
-                label: label.chars().take(512).collect(),
-                start_index: index,
-                size: 1,
-            });
+            if !input.application_mode || result.groups.last().is_none_or(|group| &group.key != key)
+            {
+                result.groups.push(Group {
+                    key: key.clone(),
+                    id: row.workspace_id.unwrap_or_default(),
+                    label: label.chars().take(512).collect(),
+                    start_index: index,
+                    size: 0,
+                });
+            }
+            if let Some(group) = result.groups.last_mut() {
+                group.size += 1;
+            }
         }
         result.changed = input.opening_direction.is_some()
-            || previews_changed(
-                &input.previous_windows,
-                &input.rows,
-                &result.workspace_order,
-            );
+            || if input.application_mode {
+                input.previous_windows.len() != result.workspace_order.len()
+                    || input
+                        .previous_windows
+                        .iter()
+                        .zip(&result.workspace_order)
+                        .any(|(old, &index)| !same_application(old, &input.rows[index]))
+            } else {
+                previews_changed(
+                    &input.previous_windows,
+                    &input.rows,
+                    &result.workspace_order,
+                )
+            };
         let count = result.groups.len() as i32;
         let find = |key: &str| {
             result
@@ -252,7 +310,16 @@ pub fn refresh(input: Refresh) -> Snapshot {
         result.selected_index = if count == 0 {
             -1
         } else if let Some(direction) = input.opening_direction {
-            let active = input.active_key.as_deref().and_then(find);
+            let active = input
+                .active_key
+                .as_deref()
+                .and_then(|key| {
+                    input
+                        .rows
+                        .iter()
+                        .find(|row| row.key == key && regular_window(row))
+                })
+                .and_then(|row| find(&target_key(row, input.application_mode)));
             if direction == 0 {
                 active.unwrap_or(0)
             } else {

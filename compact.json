@@ -7,5 +7,6 @@
   "padding": 24,
   "cornerRadius": 0,
   "backgroundOpacity": 0.38,
-  "showWallpaper": true
+  "showWallpaper": true,
+  "appIconSize": 96
 }

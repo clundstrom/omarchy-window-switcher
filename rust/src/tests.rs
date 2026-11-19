@@ -500,3 +500,189 @@ fn native_boundary_rejects_malformed_and_excessive_data() {
         json!(["3", "1"])
     );
 }
+
+fn application_window(key: &str, app: &str, workspace: i64) -> Window {
+    Window {
+        app_id: app.into(),
+        ..window(key, workspace)
+    }
+}
+
+#[test]
+fn applications_group_across_workspaces_and_target_the_most_recent_member() {
+    let mut input = opening(vec![
+        application_window("browser-old", "browser", 1),
+        application_window("editor", "editor", 1),
+        application_window("browser-new", "browser", 2),
+    ]);
+    input.application_mode = true;
+    input.active_key = Some("editor".into());
+    input.mru_keys = strings(&["editor", "browser-new", "browser-old"]);
+    let result = refresh(input);
+    assert_eq!(
+        result.frozen_history,
+        strings(&["app:editor", "app:browser"])
+    );
+    assert_eq!(result.workspace_order, vec![1, 2, 0]);
+    assert_eq!(
+        result
+            .groups
+            .iter()
+            .map(|g| (g.key.as_str(), g.start_index, g.size))
+            .collect::<Vec<_>>(),
+        vec![("app:editor", 0, 1), ("app:browser", 1, 2)]
+    );
+    assert_eq!(result.selected_index, 1);
+}
+
+#[test]
+fn application_order_stays_frozen_and_new_applications_append() {
+    let rows = vec![
+        application_window("a", "browser", 1),
+        application_window("b", "editor", 2),
+    ];
+    let mut initial = opening(rows.clone());
+    initial.application_mode = true;
+    initial.active_key = Some("a".into());
+    let first = refresh(initial);
+    let mut next_rows = rows.clone();
+    next_rows.push(application_window("c", "terminal", 3));
+    let later = refresh(Refresh {
+        application_mode: true,
+        rows: next_rows,
+        previous_windows: rows,
+        mru_keys: strings(&["c", "b", "a"]),
+        active_key: Some("b".into()),
+        frozen_history: first.frozen_history,
+        selected_key: "app:editor".into(),
+        selected_index: 1,
+        opened: true,
+        ..Refresh::default()
+    });
+    assert_eq!(
+        later
+            .groups
+            .iter()
+            .map(|g| g.key.as_str())
+            .collect::<Vec<_>>(),
+        vec!["app:browser", "app:editor", "app:terminal"]
+    );
+    assert_eq!(later.selected_index, 1);
+    let reopened = refresh(Refresh {
+        application_mode: true,
+        rows: vec![
+            application_window("a", "browser", 1),
+            application_window("b", "editor", 2),
+            application_window("c", "terminal", 3),
+        ],
+        mru_keys: strings(&["b", "c", "a"]),
+        active_key: Some("b".into()),
+        opening_direction: Some(1),
+        opened: true,
+        ..Refresh::default()
+    });
+    assert_eq!(
+        reopened.frozen_history,
+        strings(&["app:editor", "app:terminal", "app:browser"])
+    );
+}
+
+#[test]
+fn application_aliases_share_a_desktop_entry_but_unknown_ids_stay_separate() {
+    let mut a = application_window("a", "Browser", 1);
+    let mut b = application_window("b", "org.example.Browser", 2);
+    a.app_key = "org.example.Browser".into();
+    b.app_key = a.app_key.clone();
+    a.app_name = "Example Browser".into();
+    let result = refresh(Refresh {
+        application_mode: true,
+        ..opening(vec![a, b, window("unknown-a", 1), window("unknown-b", 2)])
+    });
+    assert_eq!(
+        result
+            .groups
+            .iter()
+            .map(|g| (g.key.as_str(), g.size))
+            .collect::<Vec<_>>(),
+        vec![
+            ("app:org.example.Browser", 2),
+            ("window:unknown-a", 1),
+            ("window:unknown-b", 1)
+        ]
+    );
+    assert_eq!(result.groups[0].label, "Example Browser");
+}
+
+#[test]
+fn application_mode_excludes_ineligible_windows_even_when_they_are_most_recent() {
+    let mut minimized = application_window("hidden", "browser", 1);
+    minimized.minimized = true;
+    let mut special = application_window("special", "editor", 2);
+    special.workspace_name = "special:music".into();
+    let mut unrelated = application_window("helper", "helper", 1);
+    unrelated.workspace_id = None;
+    let result = refresh(Refresh {
+        application_mode: true,
+        mru_keys: strings(&["hidden", "special", "helper", "scratchpad", "regular"]),
+        ..opening(vec![
+            minimized,
+            special,
+            unrelated,
+            application_window("scratchpad", "browser", -99),
+            application_window("regular", "browser", 2),
+        ])
+    });
+    assert_eq!(result.workspace_order, vec![4]);
+    assert_eq!(result.groups[0].key, "app:browser");
+    assert_eq!(result.groups[0].size, 1);
+}
+
+#[test]
+fn disappearing_application_member_falls_back_without_losing_app_selection() {
+    let remaining = application_window("old", "browser", 1);
+    let result = refresh(Refresh {
+        application_mode: true,
+        rows: vec![remaining.clone()],
+        previous_windows: vec![application_window("gone", "browser", 2), remaining],
+        frozen_history: strings(&["app:browser"]),
+        selected_key: "app:browser".into(),
+        selected_index: 0,
+        opened: true,
+        ..Refresh::default()
+    });
+    assert!(result.changed);
+    assert_eq!(result.selected_index, 0);
+    assert_eq!(result.groups[0].size, 1);
+    assert_eq!(result.workspace_order[result.groups[0].start_index], 0);
+    let empty = refresh(Refresh {
+        application_mode: true,
+        ..opening(vec![])
+    });
+    assert_eq!(empty.selected_index, -1);
+    assert!(empty.groups.is_empty());
+}
+
+#[test]
+fn application_geometry_and_title_updates_do_not_rebuild_icons_but_icon_changes_do() {
+    let row = application_window("a", "browser", 1);
+    let mut updated = row.clone();
+    updated.title = "New title".into();
+    updated.rect = Some(rect(40.0, 80.0, 900.0, 600.0));
+    for icon_changed in [false, true] {
+        let mut current = updated.clone();
+        if icon_changed {
+            current.app_icon = "image://icon/new".into();
+        }
+        let result = refresh(Refresh {
+            application_mode: true,
+            rows: vec![current],
+            previous_windows: vec![row.clone()],
+            frozen_history: strings(&["app:browser"]),
+            selected_key: "app:browser".into(),
+            selected_index: 0,
+            opened: true,
+            ..Refresh::default()
+        });
+        assert_eq!(result.changed, icon_changed);
+    }
+}

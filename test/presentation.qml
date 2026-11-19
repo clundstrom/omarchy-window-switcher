@@ -14,8 +14,10 @@ Window {
   property real openingWidth: 0
   property real openingHeight: 0
   property var openingPositions: []
+  property var appCases: [[5120,1440,6],[1920,1080,12],[960,540,20],[960,540,0]]
   property var windowCases: [[5120,1440,5],[3440,1440,6,800],[1920,1080,10,800],[960,540,12,800]]
   property var cases: [[5120,1440,1],[5120,1440,5],[5120,1440,6],[5120,1440,12],[1920,1080,5],[1280,720,12],[960,540,12],[1920,1080,1],[1920,1080,0],[960,540,1,960],[960,540,6,960],[1920,1080,6,400,1],[3440,1440,6,800],[1920,1080,10,800],[960,540,12,800]]
+  Plugin.ApplicationMetadata { id: appMetadata }
   Plugin.WorkspacePresentation { id: style }
   Plugin.WorkspaceGridView {
     id: grid
@@ -37,9 +39,28 @@ Window {
     var cell = grid.itemAtIndex(index)
     if (!cell) return null
     for (var i = 0; i < cell.children.length; i++) {
-      if (cell.children[i].captureEnabled !== undefined) return cell.children[i]
+      if (cell.children[i].item) return cell.children[i].item
     }
     return null
+  }
+  function checkApplicationMetadata() {
+    check(Object.keys(appMetadata.lookup("org.example.App")).length === 0, "disabled app provider does no lookups")
+    var generic = appMetadata.iconSource("")
+    for (var invalid of ["https:" + "//example.invalid/icon.png", "//example.invalid/icon.png",
+        "file:" + "//example.invalid/icon.png", "image:custom-provider", "../relative/icon.png"])
+      check(appMetadata.iconSource(invalid) === generic, "icon source accepts only native names and local paths")
+    check(appMetadata.iconSource("/tmp/example image#1.png") === "file:///tmp/example%20image%231.png", "local icon paths are encoded")
+    check(appMetadata.iconSource("/tmp/%file.png") === "file:///tmp/%25file.png", "local paths preserve percent signs")
+    appMetadata.enabled = true
+    for (var id of ["__proto__", "constructor", "toString"]) {
+      var value = appMetadata.lookup(id)
+      check(value.id === id && value.name === id, "unmatched application IDs get safe fallback metadata")
+      check(appMetadata.lookup(id) === value, "app metadata is reused from memory")
+    }
+    check(Object.keys(appMetadata.cache).length === 3, "prototype-like app IDs are distinct cache entries")
+    for (var i = 0; i < 150; i++) appMetadata.lookup("org.example.Unknown" + i)
+    check(Object.keys(appMetadata.cache).length <= 128, "app metadata cache remains bounded")
+    appMetadata.enabled = false
   }
   function checkBounds() {
     var original = style.settings
@@ -94,7 +115,7 @@ Window {
       if (!openingPositions.length) openingPositions = positions
       return
     }
-    if (test.width === 5120 && grid.count >= 5) {
+    if (!style.applicationMode && test.width === 5120 && grid.count >= 5) {
       var complete = 0
       for (var i = 0; i < grid.count; i++) {
         var preview = cardAt(i)
@@ -120,21 +141,24 @@ Window {
     onTriggered: {
       var phase = test.stage % 4
       if (phase === 0) {
-        if (test.stage / 4 >= (test.cases.length + test.windowCases.length) * 2) {
+        if (test.stage / 4 >= (test.cases.length + test.windowCases.length + test.appCases.length) * 2) {
           test.checkBounds()
+          test.checkApplicationMetadata()
           console.log("RESULT failures=" + test.failures)
           Qt.quit()
           return
         }
         var caseIndex = test.stage / 4
-        var windowMode = caseIndex >= test.cases.length * 2
-        var pool = windowMode ? test.windowCases : test.cases
-        var localIndex = windowMode ? caseIndex - test.cases.length * 2 : caseIndex
+        var appMode = caseIndex >= (test.cases.length + test.windowCases.length) * 2
+        var windowMode = !appMode && caseIndex >= test.cases.length * 2
+        var pool = appMode ? test.appCases : (windowMode ? test.windowCases : test.cases)
+        var localIndex = appMode ? caseIndex - (test.cases.length + test.windowCases.length) * 2
+          : (windowMode ? caseIndex - test.cases.length * 2 : caseIndex)
         var c = pool[localIndex % pool.length]
         test.width = c[0]; test.height = c[1]
         style.settings = { thumbnailWidth: c.length > 3 ? c[3] : 400, maxVisible: c.length > 4 ? c[4] : 5,
           overflowMode: localIndex >= pool.length ? "wrap" : "scroll",
-          switchMode: windowMode ? "windows" : "workspaces" }
+          switchMode: appMode ? "applications" : (windowMode ? "windows" : "workspaces") }
         var windows = []; var groups = []
         for (var i = 0; i < c[2]; i++) {
           windows.push({monitorRect: {x:0,y:0,width:c[0],height:c[1]}, rect:{x:0,y:0,width:c[0],height:c[1]}, workspaceId:i+1, toplevel:null, minimized:false})
@@ -162,23 +186,24 @@ Window {
           test.check(x >= grid.contentX - 1, "selected workspace left edge is visible")
           test.check(x + selected.width <= grid.contentX + grid.width + 1, "selected workspace right edge is visible")
         }
-        if (grid.count > 0) test.check(grid.captureOffsets[grid.selectedIndex] === 0, "selected workspace captures first")
+        if (style.applicationMode) test.check(grid.captureOffsets.length === 0, "application icons schedule no captures")
+        else if (grid.count > 0) test.check(grid.captureOffsets[grid.selectedIndex] === 0, "selected workspace captures first")
         else test.check(grid.captureOffsets.length === 0, "empty workspace lists schedule no captures")
         for (var j = 0; j < grid.count; j++) {
           var card = test.cardAt(j)
           var inViewport = grid.inViewport(j)
-          if (card) test.check(card.captureEnabled === inViewport, "offscreen cards detach capture sources")
-          if (!inViewport && j !== grid.selectedIndex)
+          if (card) test.check((style.applicationMode ? card.interactive : card.captureEnabled) === inViewport, "offscreen cards detach capture sources")
+          if (!style.applicationMode && !inViewport && j !== grid.selectedIndex)
             test.check(grid.captureOffsets[j] === -1, "offscreen cards consume no capture budget")
         }
         grid.switcherOpen = false
         for (var k = 0; k < grid.count; k++) {
           var closedCard = test.cardAt(k)
-          if (closedCard) test.check(!closedCard.captureEnabled, "closing detaches all capture sources")
+          if (closedCard) test.check(!(style.applicationMode ? closedCard.interactive : closedCard.captureEnabled), "closing detaches all capture sources")
         }
         grid.switcherOpen = true
         test.check(grid.height + style.padding * 2 < test.height, "strip fits vertically")
-        test.check(grid.metrics.cardWidth <= style.thumbnailWidth, "cards respect preferred width")
+        test.check(grid.metrics.cardWidth <= (style.applicationMode ? style.appIconSize + Commons.Style.space(32) : style.thumbnailWidth), "cards respect preferred width")
         console.log("CHECK geometry " + test.width + "x" + test.height + " count=" + grid.count
           + " mode=" + style.settings.overflowMode + "/" + style.settings.switchMode + " strip=" + grid.width + "x" + grid.height)
       }

@@ -3,7 +3,8 @@
 ## Switching modes
 
 The plugin switches occupied regular workspaces in most-recently-used order,
-or individual windows when `switchMode` is `windows`.
+individual windows when `switchMode` is `windows`, or application icons when
+`switchMode` is `applications`.
 It retains forward/reverse cycling, modifier-release activation
 and native workspace previews. Search, filters,
 unused alternate view components, naming and window-close controls
@@ -35,6 +36,31 @@ is disabled and focus follows the mouse. Explicit focus avoids that behaviour
 without changing desktop settings. Only validated hexadecimal compositor
 addresses enter the dispatcher string. Workspace mode retains its existing
 native toplevel activation path.
+
+Application mode groups eligible windows by their matching desktop entry
+identifier, falling back to the window's application identifier. An empty
+identifier gets a separate target per window. Only applications owning a
+non-minimised window on a regular workspace are included. There is no process
+list and an application with no eligible windows is absent. The representative
+window is the most recently used eligible member. Activation uses the same
+validated explicit focus path as window mode. Application order is derived
+from the existing recent-window history and frozen for each opening.
+
+`ApplicationMetadata.qml` looks up names and icons using Quickshell's shared
+desktop entry index. It is enabled only in application mode, caches at most
+128 distinct window application identifiers in memory, and invalidates that
+cache when the desktop index changes. Metadata is warmed when the setting
+loads. Icons accept theme names and encoded absolute local paths; other sources
+use a generic fallback. Application labels are plain text. No desktop entry
+action is executed.
+
+A Loader in the grid instantiates `ApplicationCard.qml` instead of the native
+preview card in application mode. Capture offsets stay empty and the capture
+ramp remains stopped. Icon size is separately configurable with `appIconSize`,
+from 48 to 192 logical pixels before shell scaling. Icons use available width
+rather than the preview-specific `maxVisible` limit. The existing wrapped or
+scrolling overflow choice still applies. These changes avoid thumbnail work in
+icon mode; graphics-context creation when the overlay opens is unchanged.
 
 `manifest.json` keeps the overlay loaded so MRU history survives between uses.
 `Switcher.qml` owns selection, frozen opening order, activation and the layer
@@ -375,6 +401,30 @@ No persistent render-loop setting was added. See
 [Qt's render-loop documentation](https://doc.qt.io/qt-6/qtquick-visualcanvas-scenegraph.html#scene-graph-and-rendering)
 for the supported modes.
 
+## Application mode validation
+
+The application-icon change passed 28 Rust tests, the native Qt bridge,
+keyboard and pointer checks, plugin validation and QML lint. The lint output
+still includes warnings about dynamic Omarchy theme properties and existing
+component contexts. Clippy passed with warnings treated as errors.
+
+The offscreen layout run covered 46 combinations of display size, item count,
+overflow layout and switching mode. Application cases include 5120 by 1440,
+1920 by 1080 and 960 by 540 logical pixels, with up to 20 icons. Tests also
+check local-only icon sources, fallback identifiers, cache bounds and empty
+capture scheduling.
+
+A live check on the 3440 by 1440 display showed five application targets from
+six eligible windows, with the two Steam windows grouped together. The special
+workspace terminal was absent. Tab changed selection, activation focused the
+selected native window, and the click activation entry point focused its app.
+Closing cleared the capture budget and released shortcut inhibition. The actual
+icon strip was observed in an in-memory capture. Apps without a matching desktop
+entry used the generic icon. Existing workspace settings were restored after
+testing. This live run used explicit opening and commit calls; it does not
+independently verify the compositor's physical opening chord or mouse clicks.
+The input handlers are shared with the existing modes and covered by Qt tests.
+
 ## Updates
 
 The Rust implementation lives on `main`. Build it with `bin/build`
@@ -406,6 +456,10 @@ retain compiled components after a plugin rescan. Files in the user plugin
 directory survive ordinary configuration reloads.
 
 ## Rollback
+
+Set `switchMode` back to `workspaces` to leave application mode without changing
+versions. Commit `947acbd` is the checkpoint before application icons. Preserve
+local settings and rebuild the native module when changing source versions.
 
 Commit `c472a9b` preserves workspace-only switching with left-click activation.
 

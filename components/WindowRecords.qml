@@ -8,6 +8,7 @@ QtObject {
   id: records
 
   property var objectKeyRows: []
+  property var applicationMetadata: null
   property int nextObjectKey: 1
   readonly property string objectKeyPrefix: "object:"
   readonly property string hyprlandKeyPrefix: "hyprland:"
@@ -87,9 +88,16 @@ QtObject {
     var monitorName = monitor ? String(monitor.name || "") : ""
     var focusHistoryId = Number(ipc.focusHistoryID)
     if (!isFinite(focusHistoryId) || focusHistoryId < 0) focusHistoryId = sourceIndex
+    var appId = boundedLabel(toplevel && toplevel.appId, 256)
+    var eligible = workspaceId > 0 && workspaceName.indexOf("special:") !== 0
+      && toplevel && !toplevel.minimized
+    var app = applicationMetadata && eligible ? applicationMetadata.lookup(appId) : ({})
     var record = {
       title: boundedLabel(toplevel && toplevel.title, 512),
-      appId: boundedLabel(toplevel && toplevel.appId, 256),
+      appId: appId,
+      appKey: boundedLabel(app.id, 256),
+      appName: boundedLabel(app.name, 128),
+      appIcon: String(app.icon || ""),
       key: address ? hyprlandKeyPrefix + address : fallbackKeyFor(toplevel),
       sourceIndex: focusHistoryId,
       sourceToken: fallbackKeyFor(toplevel),

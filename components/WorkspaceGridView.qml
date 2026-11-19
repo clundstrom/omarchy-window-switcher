@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 
 // A scrolling row or stationary wrapped rows. Capture visible cards,
@@ -60,6 +61,7 @@ GridView {
 
   readonly property var captureOffsets: {
     var offsets = []
+    if (presentation.applicationMode) return offsets
     // Reading GridView.model during Qt's model replacement can re-enter its
     // delegate-model getter. Schedule from the plain input array instead.
     var entries = workspaceGroups || []
@@ -85,19 +87,40 @@ GridView {
     width: view.cellWidth
     height: view.cellHeight
     readonly property bool inViewport: view.inViewport(index)
-    WorkspaceCard {
+    Loader {
+      id: cardLoader
       anchors.centerIn: parent
       width: view.metrics.cardWidth
       height: Math.min(view.metrics.cardHeight, parent.height)
-      groupData: workspaceCell.modelData
-      windows: view.windows.slice(workspaceCell.modelData.startIndex, workspaceCell.modelData.startIndex + workspaceCell.modelData.size)
-      presentation: view.presentation
-      selected: workspaceCell.index === view.selectedIndex
-      captureEnabled: view.switcherOpen && workspaceCell.inViewport
-      captureStart: view.captureOffsets[workspaceCell.index] === undefined ? 0 : view.captureOffsets[workspaceCell.index]
-      captureLimit: view.captureLimit
-      onFrameReady: view.frameReady()
-      onActivated: function(workspaceKey) { view.workspaceActivated(workspaceKey) }
+      sourceComponent: view.presentation.applicationMode ? applicationCard : previewCard
+      readonly property var entryWindows: view.windows.slice(workspaceCell.modelData.startIndex,
+        workspaceCell.modelData.startIndex + workspaceCell.modelData.size)
+      Component {
+        id: applicationCard
+        ApplicationCard {
+          groupData: workspaceCell.modelData
+          windows: cardLoader.entryWindows
+          presentation: view.presentation
+          selected: workspaceCell.index === view.selectedIndex
+          interactive: view.switcherOpen && workspaceCell.inViewport
+          onFrameReady: view.frameReady()
+          onActivated: function(workspaceKey) { view.workspaceActivated(workspaceKey) }
+        }
+      }
+      Component {
+        id: previewCard
+        WorkspaceCard {
+          groupData: workspaceCell.modelData
+          windows: cardLoader.entryWindows
+          presentation: view.presentation
+          selected: workspaceCell.index === view.selectedIndex
+          captureEnabled: view.switcherOpen && workspaceCell.inViewport
+          captureStart: view.captureOffsets[workspaceCell.index] === undefined ? 0 : view.captureOffsets[workspaceCell.index]
+          captureLimit: view.captureLimit
+          onFrameReady: view.frameReady()
+          onActivated: function(workspaceKey) { view.workspaceActivated(workspaceKey) }
+        }
+      }
     }
   }
 }

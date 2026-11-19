@@ -11,6 +11,13 @@ non-minimised windows on regular workspaces. Scratchpads, special workspaces and
 windows with no regular workspace are excluded. It does not list processes or
 background services.
 
+For an icon strip similar to the Mac application switcher, set `switchMode` to
+`"applications"`. Each application appears once, even if it has windows on
+several workspaces. Selecting its icon focuses its most recently used eligible
+window. Applications without an eligible open window do not appear. The selected
+application’s name appears below its icon. This mode uses icons from the existing
+desktop application index and captures no window images.
+
 Workspace Switcher uses Rust for recent-use history, ordering, selection and preview
 layout calculations. It keeps the existing Qt interface and window capture
 components. A small compiled module connects them, without running a separate
@@ -84,8 +91,8 @@ Hold Alt and tap Tab to highlight your previous workspace. Keep holding Alt
 and tap Tab again to move forward, or Shift+Tab to move backward. Release Alt
 when the workspace you want is highlighted.
 
-You can also left-click a preview or its workspace number to switch immediately,
-including while holding Alt. Moving the pointer does not change selection.
+You can also left-click a preview, workspace number or application icon to
+switch immediately, including while holding Alt. Moving the pointer does not change selection.
 Dragging the scrolling row cancels the click so you can still scroll it.
 
 While the popup is open, ordinary
@@ -114,16 +121,26 @@ settings are:
   "padding": 24,
   "cornerRadius": 0,
   "backgroundOpacity": 0.38,
-  "showWallpaper": true
+  "showWallpaper": true,
+  "appIconSize": 96
 }
 ```
 
 `thumbnailWidth` sets the preview width from 160 to 960 logical pixels before
 the shell's interface scaling. Height follows the monitor's proportions.
 Previews shrink when necessary to fit the available screen width or height.
-`switchMode` chooses `"workspaces"` or `"windows"`. Missing or unrecognised
-values use workspace mode. Save this setting between switching sessions; it
-applies on the next opening. Your keyboard bindings stay the same in both modes.
+`switchMode` chooses `"workspaces"`, `"windows"` or `"applications"`. Missing or
+unrecognised values use workspace mode. Save this setting between switching
+sessions; it applies on the next opening. Your keyboard bindings stay the same
+in all three modes.
+
+`appIconSize` sets the application icon size from 48 to 192 logical pixels,
+before interface scaling. It defaults to 96 and is independent of preview size.
+Application icons use the available screen width, then follow `overflowMode`
+when they need more space. `maxVisible` applies only to preview modes.
+Applications with no matching desktop icon use a generic icon. Unrecognised
+application identifiers stay separate rather than being guessed from window
+titles. Unknown windows without an application identifier each get their own icon.
 
 `overflowMode` chooses how extra workspaces appear. Use `"wrap"` for stationary
 previews that continue onto a second row, and further rows when needed. The
@@ -153,8 +170,8 @@ width in `compact.json` to keep it after a restart.
 ## Architecture
 
 The plugin runs inside Omarchy's existing Quickshell process. Rust calculates
-workspace ordering and preview geometry, while native Quickshell components
-capture window images and Qt Quick draws the overlay. See the
+workspace, window and application ordering and preview geometry. Native
+Quickshell components capture window images, and Qt Quick draws the overlay. See the
 [architecture diagram and module guide](docs/architecture.md) for the complete flow.
 
 ## Updates and development

@@ -45,4 +45,18 @@ TestCase {
     compare(result.groups[1].label, "Second")
     compare(result.selectedIndex, 1)
   }
+  function test_application_grouping_and_selection() {
+    var result = call("refresh", { applicationMode: true, opened: true, openingDirection: 1,
+      activeKey: "a", rows: [
+        { key: "a", appId: "browser", workspaceId: 1 },
+        { key: "b", appId: "browser", workspaceId: 2 },
+        { key: "c", appId: "editor", workspaceId: 1, appName: "Editor" },
+        { key: "helper", appId: "helper", workspaceId: -97 }
+      ] })
+    compare(result.groups.map(g => g.key), ["app:browser", "app:editor"])
+    compare(result.groups[0].size, 2)
+    compare(result.groups[1].label, "Editor")
+    compare(result.selectedIndex, 1)
+    compare(result.workspaceOrder[result.groups[0].startIndex], 0)
+  }
 }
