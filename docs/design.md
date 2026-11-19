@@ -49,7 +49,11 @@ from the existing recent-window history and frozen for each opening.
 `ApplicationMetadata.qml` looks up names and icons using Quickshell's shared
 desktop entry index. It is enabled only in application mode, caches at most
 128 distinct window application identifiers in memory, and invalidates that
-cache when the desktop index changes. Metadata is warmed when the setting
+cache when the desktop index changes or `applicationAliases` changes. This
+optional setting maps exact window identifiers to installed desktop entries,
+for example Wine launchers or browser profiles whose identifiers differ from
+their launcher files. Invalid mappings are ignored and missing entries fall
+back to the original identifier. Metadata is warmed when the setting
 loads. Icons accept theme names and encoded absolute local paths; other sources
 use a generic fallback. Application labels are plain text. No desktop entry
 action is executed.
@@ -420,7 +424,11 @@ workspace terminal was absent. Tab changed selection, activation focused the
 selected native window, and the click activation entry point focused its app.
 Closing cleared the capture budget and released shortcut inhibition. The actual
 icon strip was observed in an in-memory capture. Apps without a matching desktop
-entry used the generic icon. Existing workspace settings were restored after
+entry used the generic icon. A subsequent live check with local aliases resolved
+`steam_app_battlenet` to the installed Battle.net entry and the Discord browser
+profile to the installed Discord entry; both correct icons were observed.
+Alias checks cover cache invalidation, invalid inputs, missing entries and real
+desktop entry name and icon resolution. Existing workspace settings were restored after
 testing. This live run used explicit opening and commit calls; it does not
 independently verify the compositor's physical opening chord or mouse clicks.
 The input handlers are shared with the existing modes and covered by Qt tests.

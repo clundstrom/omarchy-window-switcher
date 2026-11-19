@@ -6,8 +6,19 @@ import Quickshell
 QtObject {
   id: metadata
   property bool enabled: false
+  property var aliases: ({})
   property var cache: ({})
   signal refreshed()
+  onAliasesChanged: { cache = ({}); refreshed() }
+
+  function desktopIdFor(appId) {
+    if (!aliases || typeof aliases !== "object" || Array.isArray(aliases)
+        || !Object.prototype.hasOwnProperty.call(aliases, appId)) return appId
+    var value = aliases[appId]
+    if (typeof value !== "string" || value.length > 256
+        || !/^[A-Za-z0-9_+-][A-Za-z0-9_.+-]*$/.test(value)) return appId
+    return value.replace(/\.desktop$/, "")
+  }
 
   function iconSource(value) {
     var icon = String(value || "")
@@ -22,7 +33,9 @@ QtObject {
     if (!enabled || !appId) return ({})
     var key = "app:" + appId
     if (cache[key] !== undefined) return cache[key]
-    var entry = DesktopEntries.heuristicLookup(appId)
+    var id = desktopIdFor(appId)
+    var entry = DesktopEntries.heuristicLookup(id)
+    if (!entry && id !== appId) entry = DesktopEntries.heuristicLookup(appId)
     var result = {
       id: entry ? String(entry.id) : appId,
       name: entry ? String(entry.name) : appId,

@@ -142,6 +142,22 @@ Applications with no matching desktop icon use a generic icon. Unrecognised
 application identifiers stay separate rather than being guessed from window
 titles. Unknown windows without an application identifier each get their own icon.
 
+If a window's application identifier differs from its desktop entry, add an
+`applicationAliases` object to `compact.json`. The key is the window's identifier
+and the value is the desktop entry filename, with or without `.desktop`.
+For example:
+
+```json
+"applicationAliases": {
+  "steam_app_battlenet": "battlenet",
+  "chrome-discord.com__channels_@me-Profile_1": "Discord"
+}
+```
+
+These mappings use the entry's name and icon and group its windows together.
+There are no mappings by default. A missing entry or invalid value falls back
+to the original identifier. Nothing is launched.
+
 `overflowMode` chooses how extra workspaces appear. Use `"wrap"` for stationary
 previews that continue onto a second row, and further rows when needed. The
 layout reduces preview size if the rows would otherwise exceed the screen.

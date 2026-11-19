@@ -268,6 +268,7 @@ Item {
   ApplicationMetadata {
     id: appMetadata
     enabled: appearance.applicationMode
+    aliases: appearance.settings.applicationAliases || ({})
     onRefreshed: modelRefresh.restart()
   }
   WindowRecords {

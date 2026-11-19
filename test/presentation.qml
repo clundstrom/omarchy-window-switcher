@@ -60,6 +60,24 @@ Window {
     check(Object.keys(appMetadata.cache).length === 3, "prototype-like app IDs are distinct cache entries")
     for (var i = 0; i < 150; i++) appMetadata.lookup("org.example.Unknown" + i)
     check(Object.keys(appMetadata.cache).length <= 128, "app metadata cache remains bounded")
+    appMetadata.aliases = { "org.example.Window": "org.example.App.desktop" }
+    check(Object.keys(appMetadata.cache).length === 0, "changing app aliases invalidates cached matches")
+    check(appMetadata.desktopIdFor("org.example.Window") === "org.example.App", "aliases accept desktop entry filenames")
+    check(appMetadata.desktopIdFor("constructor") === "constructor", "inherited alias properties are ignored")
+    check(appMetadata.lookup("org.example.Window").id === "org.example.Window", "missing alias entries preserve the original identifier")
+    for (var invalidAlias of [null, 12, {}, "", "../some-app", "/tmp/app.desktop", "https:" + "//example.invalid/app", "a".repeat(257)]) {
+      appMetadata.aliases = { "org.example.Window": invalidAlias }
+      check(appMetadata.desktopIdFor("org.example.Window") === "org.example.Window", "invalid aliases preserve the original identifier")
+    }
+    var entries = DesktopEntries.applications.values
+    if (entries.length) {
+      var entry = entries[0]
+      appMetadata.aliases = { "org.example.Window": String(entry.id) }
+      var matched = appMetadata.lookup("org.example.Window")
+      check(matched.id === String(entry.id) && matched.name === String(entry.name), "alias resolves the real desktop entry metadata")
+      check(matched.icon === appMetadata.iconSource(entry.icon), "alias uses the desktop entry icon")
+    }
+    appMetadata.aliases = ({})
     appMetadata.enabled = false
   }
   function checkBounds() {
