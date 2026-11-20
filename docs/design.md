@@ -405,6 +405,39 @@ No persistent render-loop setting was added. See
 [Qt's render-loop documentation](https://doc.qt.io/qt-6/qtquick-visualcanvas-scenegraph.html#scene-graph-and-rendering)
 for the supported modes.
 
+## Application window overview
+
+`app-overview` is an additional native global shortcut, bound to Ctrl+Down in
+the example bindings. It opens from the focused eligible native window. The
+controller resolves that window's desktop application identity through the same
+alias-aware metadata provider as application mode. It retains the identity for
+the whole session. Rust's optional `overviewApp` filter limits only the displayed
+window indices and frozen target order; full enumeration and recent-window
+history remain intact.
+
+The overview forces individual window previews and stationary wrapped layout.
+It uses the configured preview size and the existing 20-source capture budget,
+with no live streaming or additional thumbnail cache. `OverviewKeySurface.qml`
+handles arrow selection, Enter and Escape. Tab cycling and the opacity shortcut
+still reach the shared key surface. Ctrl release does not activate a window.
+Click activation and Enter use the existing unmap-and-focus path. Cancellation
+uses the original window's validated address, avoiding pointer-induced refocus.
+A second invocation dismisses the overview; an invocation during ordinary
+modifier switching is ignored. The overview closes if its last eligible window
+disappears and does not expand its application scope when focus changes.
+
+Automated validation covers 32 Rust tests, native Qt bridge and input checks,
+and 49 offscreen layout cases. The overview cases check cross-workspace and
+cross-monitor metadata, application aliases, special-workspace exclusions,
+window removal, unrecognised application identifiers and partial grid rows.
+The real opening chord, rendered thumbnails and desktop focus transitions still
+need confirmation in an unlocked live desktop session.
+
+The opening chord can be changed or removed in user Hyprland bindings. No
+persistent appearance setting is changed when the overview opens. The native
+core library must be rebuilt after this source update. Roll back to `0d1dafa`,
+rebuild and remove the `app-overview` binding to restore the earlier version.
+
 ## Application mode validation
 
 The application-icon change passed 28 Rust tests, the native Qt bridge,

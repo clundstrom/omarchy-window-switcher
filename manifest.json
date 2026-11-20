@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "community.window-switcher",
   "name": "Workspace Switcher",
-  "version": "3.5.1",
+  "version": "3.6.0",
   "author": "Workspace Switcher contributors",
-  "description": "Switch between recent workspaces, windows or applications with themed previews and icons",
+  "description": "Workspace, window and application switching, with previews, icons and an app-window overview",
   "license": "MIT",
   "kinds": [
     "overlay"

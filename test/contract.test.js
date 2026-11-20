@@ -18,7 +18,7 @@ assert.equal(manifest.id, 'community.window-switcher', 'installed plugin identit
 assert.equal(manifest.keepLoaded, true, 'workspace MRU survives closing the popup')
 assert.deepEqual(manifest.kinds, ['overlay'])
 assert.equal(manifest.entryPoints.overlay, 'Switcher.qml')
-for (const name of ['next-workspace', 'previous-workspace', 'modifier-left', 'modifier-right']) {
+for (const name of ['next-workspace', 'previous-workspace', 'modifier-left', 'modifier-right', 'app-overview']) {
   assert.ok(switcher.includes(`"${name}"`), `native shortcut ${name} is registered`)
 }
 for (const key of ['Qt.Key_Tab', 'Qt.Key_Backtab']) {
@@ -26,8 +26,10 @@ for (const key of ['Qt.Key_Tab', 'Qt.Key_Backtab']) {
 }
 assert.doesNotMatch(keys, /Qt\.Key_(?:Escape|Return|Enter|F2|Delete|[0-9])\b/,
   'removed navigation and cancellation controls stay removed')
-assert.doesNotMatch(switcher, /onCancelled:|onCommitted:|onClicked:\s*root\.cancel\(/,
-  'Enter, Escape and outside-click controls are removed')
+assert.match(switcher, /onCancelled: if \(root\.overviewMode\) root\.close\(\)/,
+  'explicit cancellation is scoped to the persistent overview')
+assert.match(switcher, /onCommitted: if \(root\.overviewMode\) root\.commitSelected\(\)/,
+  'explicit commit is scoped to the persistent overview')
 assert.match(card, /ScreencopyView\s*\{/, 'previews use native compositor capture')
 assert.match(card, /captureSource:\s*card\.captureEnabled/,
   'hidden/closed workspace cards detach their native sources')
@@ -65,8 +67,8 @@ assert.match(switcher, /root\.windows = \[\]/,
   'closed native capture records are discarded')
 assert.match(switcher, /ShortcutInhibitor\s*\{[\s\S]*?enabled:\s*root\.opened/,
   'desktop gestures are inhibited only during the workspace interaction')
-assert.equal((read('docs/bindings.lua').match(/dont_inhibit = true/g) || []).length, 4,
-  'all four native switcher bindings remain usable during inhibition')
+assert.equal((read('docs/bindings.lua').match(/dont_inhibit = true/g) || []).length, 5,
+  'native switcher and overview bindings remain usable during inhibition')
 assert.match(keys, /Qt\.Key_Backspace[\s\S]*Qt\.MetaModifier/,
   'the focused overlay handles the standard opacity shortcut')
 assert.match(switcher, /onModifierReleased:\s*root\.finishModifierRelease\(\)/,
@@ -84,6 +86,6 @@ assert.match(appCard, /textFormat:\s*Text\.PlainText/,
   'application names are rendered as plain text')
 assert.match(grid, /if \(presentation\.applicationMode\) return offsets/,
   'application mode schedules no native image captures')
-assert.match(switcher, /applicationMetadata:\s*appearance\.applicationMode \? appMetadata : null/,
+assert.match(switcher, /applicationMetadata:\s*appearance\.applicationMode \|\| root\.overviewMode \? appMetadata : null/,
   'application lookups stay out of existing preview modes')
 console.log('ok - workspace plugin boundaries')

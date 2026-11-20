@@ -14,6 +14,7 @@ Window {
   property real openingWidth: 0
   property real openingHeight: 0
   property var openingPositions: []
+  property var overviewCases: [[5120,1440,3],[1920,1080,6],[960,540,12]]
   property var appCases: [[5120,1440,6],[1920,1080,12],[960,540,20],[960,540,0]]
   property var windowCases: [[5120,1440,5],[3440,1440,6,800],[1920,1080,10,800],[960,540,12,800]]
   property var cases: [[5120,1440,1],[5120,1440,5],[5120,1440,6],[5120,1440,12],[1920,1080,5],[1280,720,12],[960,540,12],[1920,1080,1],[1920,1080,0],[960,540,1,960],[960,540,6,960],[1920,1080,6,400,1],[3440,1440,6,800],[1920,1080,10,800],[960,540,12,800]]
@@ -45,6 +46,9 @@ Window {
   }
   function checkApplicationMetadata() {
     check(Object.keys(appMetadata.lookup("org.example.App")).length === 0, "disabled app provider does no lookups")
+    check(appMetadata.resolve("org.example.Overview").id === "org.example.Overview", "explicit overview invocation can resolve metadata before enabling previews")
+    check(Object.keys(appMetadata.lookup("org.example.Overview")).length === 0, "explicit resolution does not enable ordinary preview lookups")
+    appMetadata.cache = ({})
     var generic = appMetadata.iconSource("")
     for (var invalid of ["https:" + "//example.invalid/icon.png", "//example.invalid/icon.png",
         "file:" + "//example.invalid/icon.png", "image:custom-provider", "../relative/icon.png"])
@@ -159,7 +163,7 @@ Window {
     onTriggered: {
       var phase = test.stage % 4
       if (phase === 0) {
-        if (test.stage / 4 >= (test.cases.length + test.windowCases.length + test.appCases.length) * 2) {
+        if (test.stage / 4 >= (test.cases.length + test.windowCases.length + test.appCases.length) * 2 + test.overviewCases.length) {
           test.checkBounds()
           test.checkApplicationMetadata()
           console.log("RESULT failures=" + test.failures)
@@ -167,16 +171,20 @@ Window {
           return
         }
         var caseIndex = test.stage / 4
-        var appMode = caseIndex >= (test.cases.length + test.windowCases.length) * 2
-        var windowMode = !appMode && caseIndex >= test.cases.length * 2
-        var pool = appMode ? test.appCases : (windowMode ? test.windowCases : test.cases)
-        var localIndex = appMode ? caseIndex - (test.cases.length + test.windowCases.length) * 2
-          : (windowMode ? caseIndex - test.cases.length * 2 : caseIndex)
+        var overview = caseIndex >= (test.cases.length + test.windowCases.length + test.appCases.length) * 2
+        var appMode = !overview && caseIndex >= (test.cases.length + test.windowCases.length) * 2
+        var windowMode = !overview && !appMode && caseIndex >= test.cases.length * 2
+        var pool = overview ? test.overviewCases : (appMode ? test.appCases : (windowMode ? test.windowCases : test.cases))
+        var localIndex = overview ? caseIndex - (test.cases.length + test.windowCases.length + test.appCases.length) * 2
+          : (appMode ? caseIndex - (test.cases.length + test.windowCases.length) * 2
+          : (windowMode ? caseIndex - test.cases.length * 2 : caseIndex))
+        style.overviewMode = overview
         var c = pool[localIndex % pool.length]
         test.width = c[0]; test.height = c[1]
         style.settings = { thumbnailWidth: c.length > 3 ? c[3] : 400, maxVisible: c.length > 4 ? c[4] : 5,
           overflowMode: localIndex >= pool.length ? "wrap" : "scroll",
-          switchMode: appMode ? "applications" : (windowMode ? "windows" : "workspaces") }
+          switchMode: appMode || overview ? "applications" : (windowMode ? "windows" : "workspaces") }
+        if (overview) test.check(style.windowMode && !style.applicationMode && style.wrapOverflow, "overview overrides icons and scrolling without changing saved settings")
         var windows = []; var groups = []
         for (var i = 0; i < c[2]; i++) {
           windows.push({monitorRect: {x:0,y:0,width:c[0],height:c[1]}, rect:{x:0,y:0,width:c[0],height:c[1]}, workspaceId:i+1, toplevel:null, minimized:false})
@@ -223,7 +231,7 @@ Window {
         test.check(grid.height + style.padding * 2 < test.height, "strip fits vertically")
         test.check(grid.metrics.cardWidth <= (style.applicationMode ? style.appIconSize + Commons.Style.space(32) : style.thumbnailWidth), "cards respect preferred width")
         console.log("CHECK geometry " + test.width + "x" + test.height + " count=" + grid.count
-          + " mode=" + style.settings.overflowMode + "/" + style.settings.switchMode + " strip=" + grid.width + "x" + grid.height)
+          + " mode=" + style.settings.overflowMode + "/" + style.settings.switchMode + (style.overviewMode ? "/overview" : "") + " strip=" + grid.width + "x" + grid.height)
       }
       test.stage++
     }

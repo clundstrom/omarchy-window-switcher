@@ -12,6 +12,8 @@ Item {
   property var shell: null
   property var manifest: null
   property bool opened: false
+  property string overviewAppKey: ""
+  readonly property bool overviewMode: overviewAppKey.length > 0
   property bool surfaceVisible: false
   property var targetScreen: null
   property var originalToplevel: null
@@ -81,6 +83,7 @@ Item {
       if (record.toplevel === active) activeKey = record.key
     }
     var result = coreCall("refresh", { windowMode: appearance.windowMode, applicationMode: appearance.applicationMode,
+      overviewApp: overviewMode ? overviewAppKey : null,
       rows: rows.map(metadata), mruKeys: mruKeys,
       workspaceHistory: workspaceMruKeys, frozenHistory: openWorkspaceMruKeys,
       focusedWorkspaceId: Hyprland.focusedWorkspace ? focusedWorkspaceId : null,
@@ -97,6 +100,7 @@ Item {
     windows = result.workspaceOrder.map(function(index) { return rows[index] })
     groups = result.groups
     selectedIndex = result.selectedIndex
+    if (overviewMode && !groups.length) { close(); return }
     revealSelected()
   }
   function noteActiveToplevel() {
@@ -156,9 +160,26 @@ Item {
   function open(payloadJson) {
     var payload = ({})
     try { payload = JSON.parse(payloadJson || "{}") || ({}) } catch (error) {}
+    if (payload.overview === true) { openOverview(); return }
     openWorkspace(Number(payload.direction) < 0 ? -1 : (Number(payload.direction) === 0 ? 0 : 1), payload.activation !== "explicit")
   }
-  function openWorkspace(direction, activateOnRelease) {
+  function openOverview(unused) {
+    if (opened) {
+      if (overviewMode) close()
+      return "ignored"
+    }
+    var active = ToplevelManager.activeToplevel
+    if (!active) return "no active window"
+    records.syncObjectKeys(currentToplevels())
+    var record = records.recordFor(active, 0)
+    if (!(record.workspaceId > 0) || record.minimized || record.workspaceName.indexOf("special:") === 0)
+      return "no eligible active window"
+    var app = appMetadata.resolve(record.appId)
+    var key = app.id || record.appId
+    openWorkspace(0, false, key ? "app:" + key : "window:" + record.key)
+    return "opened"
+  }
+  function openWorkspace(direction, activateOnRelease, overviewKey) {
     if (opened) {
       if (direction) step(direction)
       return
@@ -166,6 +187,7 @@ Item {
     var started = Date.now()
     openSerial++
     closeTick.stop()
+    overviewAppKey = String(overviewKey || "")
     originalToplevel = ToplevelManager.activeToplevel
     pendingActivation = null
     pendingActivationAddress = ""
@@ -178,6 +200,7 @@ Item {
     opened = true
     appearance.prepareOpen()
     rebuildWindows(direction)
+    if (!opened) return
     surfaceVisible = true
     Hyprland.refreshToplevels()
     Hyprland.refreshMonitors()
@@ -205,6 +228,7 @@ Item {
   }
   function commitSelected() {
     var selected = selectedWindow
+    if (!selected && overviewMode) { close(); return }
     beginClose(selected && selected.toplevel ? selected.toplevel : originalToplevel, selected ? selected.address : "")
   }
   function activateWorkspace(key) {
@@ -220,7 +244,15 @@ Item {
     }
   }
   // Host lifecycle cleanup, independent of user-facing activation controls.
-  function close() { beginClose(originalToplevel) }
+  function close() {
+    var address = ""
+    if (overviewMode) {
+      for (var i = 0; i < allWindows.length; i++) {
+        if (allWindows[i].toplevel === originalToplevel) { address = allWindows[i].address; break }
+      }
+    }
+    beginClose(originalToplevel, address)
+  }
   function toggleTransparency(unused) {
     if (!opened) return "ignored"
     opaqueBackground = !opaqueBackground
@@ -241,6 +273,7 @@ Item {
     return JSON.stringify({ opened: opened, surfaceVisible: surfaceVisible,
       windowCount: allWindows.length, workspaceCount: workspaceKeys.length,
       switchMode: appearance.applicationMode ? "applications" : (appearance.windowMode ? "windows" : "workspaces"),
+      overviewMode: overviewMode, overviewAppKey: overviewAppKey,
       itemCount: groups.length, itemKeys: groups.map(function(group) { return group.key }),
       selectedWindowKey: selectedWindow ? selectedWindow.key : "",
       workspaceKeys: workspaceKeys,
@@ -248,7 +281,7 @@ Item {
       selectedIndex: selectedIndex, selectedWorkspaceId: selectedWindow ? selectedWindow.workspaceId : null,
       focusedWorkspaceId: focusedWorkspaceId, targetScreen: targetScreen ? targetScreen.name : "",
       captureLimit: captureLimit, captureBudget: captureBudget, openWorkMs: openWorkMs, firstFrameMs: firstFrameMs,
-      keyFocus: keySurface.activeFocus, releaseArmed: releaseArmed, releaseActivation: releaseActivation,
+      keyFocus: keySurface.activeFocus || overviewKeys.activeFocus, releaseArmed: releaseArmed, releaseActivation: releaseActivation,
       shortcutsInhibited: gestureGuard.active, backgroundOpaque: opaqueBackground,
       overflowMode: appearance.wrapOverflow ? "wrap" : "scroll",
       previewWidth: appearance.thumbnailWidth, wallpaperReady: appearance.wallpaperPreload.status === Image.Ready,
@@ -259,21 +292,28 @@ Item {
   Native.WorkspaceCore { id: workspaceCore }
   WorkspacePresentation {
     id: appearance
-    onWindowModeChanged: if (root.opened) root.close()
+    overviewMode: root.overviewMode
+    onWindowModeChanged: if (root.opened && !root.overviewMode) root.close()
     onApplicationModeChanged: {
-      if (root.opened) root.close()
+      if (root.opened && !root.overviewMode) root.close()
       modelRefresh.restart()
     }
   }
   ApplicationMetadata {
     id: appMetadata
-    enabled: appearance.applicationMode
+    enabled: appearance.applicationMode || root.overviewMode
     aliases: appearance.settings.applicationAliases || ({})
     onRefreshed: modelRefresh.restart()
   }
   WindowRecords {
     id: records
-    applicationMetadata: appearance.applicationMode ? appMetadata : null
+    applicationMetadata: appearance.applicationMode || root.overviewMode ? appMetadata : null
+  }
+  GlobalShortcut {
+    appid: "community.window-switcher"
+    name: "app-overview"
+    description: "Show windows of the focused application"
+    onPressed: root.openOverview()
   }
   GlobalShortcut {
     appid: "community.window-switcher"
@@ -323,7 +363,8 @@ Item {
     interval: 1
     onTriggered: {
       if (!root.opened) return
-      keySurface.forceActiveFocus()
+      if (root.overviewMode) overviewKeys.forceActiveFocus()
+      else keySurface.forceActiveFocus()
       root.releaseArmed = true
     }
   }
@@ -342,6 +383,7 @@ Item {
       root.pendingActivation = null
       root.pendingActivationAddress = ""
       root.targetScreen = null
+      root.overviewAppKey = ""
       noteLifecycle("hidden")
       Qt.callLater(function() {
         if (serial !== root.openSerial || root.opened || !target) return
@@ -381,7 +423,7 @@ Item {
     WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     // Desktop mouse bindings are processed before QML pointer events. Keep
     // gestures such as Super+right-drag out of this workspace overlay.
-    // Its four native bindings bypass inhibition; all gestures resume on close.
+    // Its native bindings bypass inhibition; all gestures resume on close.
     ShortcutInhibitor {
       id: gestureGuard
       window: panel
@@ -396,6 +438,16 @@ Item {
       onStepped: function(direction) { root.step(direction) }
       onModifierReleased: root.finishModifierRelease()
       onTransparencyToggled: root.toggleTransparency("")
+      OverviewKeySurface {
+        id: overviewKeys
+        visible: root.overviewMode
+        columns: workspaceView.metrics.columns || 1
+        count: root.groups.length
+        selectedIndex: root.selectedIndex
+        onSelectionRequested: function(index) { root.selectedIndex = index; root.revealSelected() }
+        onCommitted: if (root.overviewMode) root.commitSelected()
+        onCancelled: if (root.overviewMode) root.close()
+      }
       Rectangle {
         anchors.fill: parent
         color: Commons.Util.alpha(Commons.Color.background,

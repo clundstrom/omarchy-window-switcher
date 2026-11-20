@@ -31,6 +31,12 @@ QtObject {
   }
   function lookup(appId) {
     if (!enabled || !appId) return ({})
+    return resolve(appId)
+  }
+  // Explicit overview invocation may resolve its origin before preview mode
+  // enables the provider. Ordinary preview enumeration still calls lookup.
+  function resolve(appId) {
+    if (!appId) return ({})
     var key = "app:" + appId
     if (cache[key] !== undefined) return cache[key]
     var id = desktopIdFor(appId)

@@ -56,6 +56,15 @@ controller mounted between uses, so its recent-workspace history survives when
 the overlay closes. The native display window is a separate object and is
 created when the overlay opens.
 
+The optional app-window overview uses the same controller and native layer
+window. Its `app-overview` global shortcut captures the focused application’s
+canonical identity, then requests individual windows filtered to that identity.
+The full window enumeration and recent-use history are preserved. A dedicated
+`OverviewKeySurface.qml` handles arrows, Enter and Escape for this persistent
+interaction. The normal switcher’s modifier-release input remains separate.
+The overview forces wrapped window previews for its session without changing
+saved appearance settings.
+
 The default Hyprland bindings send native global shortcuts to the loaded
 controller. They do not start a shell command on each Tab press. Tab presses
 inside the overlay also reach its key surface. Modifier trackers cover a release
@@ -155,6 +164,7 @@ activation. Neither path starts a child process.
 | [`Switcher.qml`](../Switcher.qml) | Session history state, selected workspace, opening and closing, native shortcuts, layer window and capture scheduling. |
 | [`CompositorSignals.qml`](../components/CompositorSignals.qml) | Window, workspace and monitor notifications, including the geometry-reply notification. |
 | [`WindowRecords.qml`](../components/WindowRecords.qml) | Associates native window handles with metadata and stable source tokens. |
+| [`OverviewKeySurface.qml`](../components/OverviewKeySurface.qml) | Grid navigation and explicit activation or cancellation for the persistent app-window overview. |
 | [`SwitcherKeySurface.qml`](../components/SwitcherKeySurface.qml) | Cycling, modifier release and the opacity shortcut inside the overlay. |
 | [`WorkspaceTapTarget.qml`](../components/WorkspaceTapTarget.qml) | Left-click activation on release, with drag cancellation and no hover selection. |
 | [`WorkspaceGridView.qml`](../components/WorkspaceGridView.qml) | Scrolling or stationary wrapped layout, selection visibility and capture priority. |

@@ -106,6 +106,25 @@ opacity shortcut inside the overlay. Outside the switcher, Omarchy's normal
 window opacity command works as before. The backdrop choice lasts until the
 plugin is reloaded.
 
+## Application window overview
+
+Press Ctrl+Down while an application is focused to see its open windows as
+separate previews. The overview stays open when you release Ctrl. Use the arrow
+keys or Tab and Shift+Tab to select a window, then press Enter or click its
+preview to activate it. Escape cancels and returns focus to the original window.
+Pressing Ctrl+Down again also dismisses the overview.
+
+Matching windows can be on different regular workspaces or monitors. Special
+workspaces and minimised windows remain excluded. Application aliases apply
+here too. The overview always uses stationary wrapped previews and the configured
+preview size, regardless of your ordinary switching mode or overflow choice.
+Its contents stay limited to the application that was focused when it opened.
+If that application's last eligible window closes, the overview closes too.
+
+The binding is included in `docs/bindings.lua`. Change `CTRL + DOWN` there, or
+in your installed Hyprland bindings, if an application needs that shortcut.
+The existing switcher shortcut and its modifier-release behaviour are unchanged.
+
 ## Appearance
 
 Edit `compact.json` in the plugin directory to change the appearance. The default

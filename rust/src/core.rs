@@ -35,6 +35,7 @@ pub struct Window {
 pub struct Refresh {
     pub window_mode: bool,
     pub application_mode: bool,
+    pub overview_app: Option<String>,
     pub rows: Vec<Window>,
     pub mru_keys: Vec<String>,
     pub workspace_history: Vec<String>,
@@ -136,6 +137,10 @@ fn target_key(row: &Window, application_mode: bool) -> String {
     }
 }
 
+fn eligible_target(row: &Window, overview_app: Option<&str>) -> bool {
+    regular_window(row) && overview_app.is_none_or(|app| target_key(row, true) == app)
+}
+
 fn same_application(left: &Window, right: &Window) -> bool {
     left.key == right.key
         && left.source_token == right.source_token
@@ -207,7 +212,9 @@ pub fn refresh(input: Refresh) -> Snapshot {
             let mut seen = HashSet::new();
             window_order
                 .iter()
-                .filter(|&&index| regular_window(&input.rows[index]))
+                .filter(|&&index| {
+                    eligible_target(&input.rows[index], input.overview_app.as_deref())
+                })
                 .map(|&index| target_key(&input.rows[index], input.application_mode))
                 .filter(|key| seen.insert(key.clone()))
                 .collect()
@@ -234,7 +241,7 @@ pub fn refresh(input: Refresh) -> Snapshot {
         .window_order
         .iter()
         .copied()
-        .filter(|&index| regular_window(&input.rows[index]))
+        .filter(|&index| eligible_target(&input.rows[index], input.overview_app.as_deref()))
         .collect();
     if input.window_mode || input.application_mode {
         let target_keys: Vec<String> = input

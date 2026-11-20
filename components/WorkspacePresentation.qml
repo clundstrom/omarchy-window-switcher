@@ -7,11 +7,12 @@ QtObject {
   id: presentation
 
   property var settings: ({})
+  property bool overviewMode: false
   readonly property int thumbnailWidth: Commons.Style.space(number("thumbnailWidth", 800, 160, 960))
   readonly property int maxVisible: number("maxVisible", 5, 1, 8)
-  readonly property bool wrapOverflow: settings.overflowMode === "wrap"
-  readonly property bool windowMode: settings.switchMode === "windows"
-  readonly property bool applicationMode: settings.switchMode === "applications"
+  readonly property bool wrapOverflow: overviewMode || settings.overflowMode === "wrap"
+  readonly property bool windowMode: overviewMode || settings.switchMode === "windows"
+  readonly property bool applicationMode: !overviewMode && settings.switchMode === "applications"
   readonly property bool windowTargets: windowMode || applicationMode
   readonly property int appIconSize: Commons.Style.space(number("appIconSize", 96, 48, 192))
   readonly property int spacing: Commons.Style.space(number("spacing", 28, 4, 64))

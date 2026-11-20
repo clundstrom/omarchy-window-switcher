@@ -45,6 +45,20 @@ TestCase {
     compare(result.groups[1].label, "Second")
     compare(result.selectedIndex, 1)
   }
+  function test_overview_filters_the_view_without_pruning_history() {
+    var result = call("refresh", { windowMode: true, overviewApp: "app:terminal", opened: true,
+      openingDirection: 0, activeKey: "a", mruKeys: ["browser", "b", "a"], rows: [
+        { key: "a", appId: "terminal", workspaceId: 1 },
+        { key: "browser", appId: "browser", workspaceId: 1 },
+        { key: "b", appId: "terminal", workspaceId: 2 },
+        { key: "console", appId: "terminal", workspaceId: -98 }
+      ] })
+    compare(result.groups.map(g => g.key), ["a", "b"])
+    compare(result.groups.map(g => g.size), [1, 1])
+    compare(result.windowOrder.length, 4)
+    compare(result.mruKeys, ["a", "browser", "b"])
+    compare(result.selectedIndex, 0)
+  }
   function test_application_grouping_and_selection() {
     var result = call("refresh", { applicationMode: true, opened: true, openingDirection: 1,
       activeKey: "a", rows: [

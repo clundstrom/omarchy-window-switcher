@@ -3,6 +3,10 @@
 o.rebind("ALT + TAB", "Switcher: next recent", hl.dsp.global("community.window-switcher:next-workspace"), { dont_inhibit = true })
 o.rebind("ALT + SHIFT + TAB", "Switcher: previous recent", hl.dsp.global("community.window-switcher:previous-workspace"), { dont_inhibit = true })
 
+-- Persistent overview of the focused app's windows. Change the chord here
+-- if an application needs Ctrl+Down for its own controls.
+o.bind("CTRL + DOWN", "Application window overview", hl.dsp.global("community.window-switcher:app-overview"), { dont_inhibit = true })
+
 -- Track modifier release even before the popup receives keyboard focus.
 -- These bindings do not consume Alt or interfere with other Alt chords.
 o.bind("Alt_L", nil, hl.dsp.global("community.window-switcher:modifier-left"), {

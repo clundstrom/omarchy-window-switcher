@@ -686,3 +686,123 @@ fn application_geometry_and_title_updates_do_not_rebuild_icons_but_icon_changes_
         assert_eq!(result.changed, icon_changed);
     }
 }
+
+#[test]
+fn overview_lists_each_matching_window_across_workspaces_and_monitors() {
+    let mut other_monitor = application_window("ghostty-two", "com.mitchellh.ghostty", 2);
+    other_monitor.monitor_id = Some(1);
+    let input = Refresh {
+        window_mode: true,
+        overview_app: Some("app:com.mitchellh.ghostty".into()),
+        mru_keys: strings(&["browser", "ghostty-two", "ghostty-one"]),
+        active_key: Some("ghostty-one".into()),
+        opening_direction: Some(0),
+        opened: true,
+        rows: vec![
+            application_window("ghostty-one", "com.mitchellh.ghostty", 1),
+            application_window("browser", "firefox", 1),
+            other_monitor,
+            application_window("console", "com.mitchellh.ghostty", -98),
+        ],
+        ..Refresh::default()
+    };
+    let result = refresh(input);
+    assert_eq!(
+        result
+            .groups
+            .iter()
+            .map(|g| (g.key.as_str(), g.size))
+            .collect::<Vec<_>>(),
+        vec![("ghostty-one", 1), ("ghostty-two", 1)]
+    );
+    assert_eq!(
+        result.frozen_history,
+        strings(&["ghostty-one", "ghostty-two"])
+    );
+    assert_eq!(result.selected_index, 0);
+    // Filtering the view must not prune recent-window history or enumeration.
+    assert_eq!(
+        result.mru_keys,
+        strings(&["ghostty-one", "browser", "ghostty-two"])
+    );
+    assert_eq!(result.window_order.len(), 4);
+}
+
+#[test]
+fn overview_uses_canonical_aliases_and_never_includes_special_or_minimized_windows() {
+    let mut aliased = application_window("a", "wine-app", 1);
+    aliased.app_key = "launcher".into();
+    let mut direct = application_window("b", "launcher", 2);
+    direct.app_key = "launcher".into();
+    let mut minimized = aliased.clone();
+    minimized.key = "minimized".into();
+    minimized.minimized = true;
+    let mut special = direct.clone();
+    special.key = "special".into();
+    special.workspace_name = "special:console".into();
+    let result = refresh(Refresh {
+        window_mode: true,
+        overview_app: Some("app:launcher".into()),
+        ..opening(vec![
+            aliased,
+            direct,
+            minimized,
+            special,
+            application_window("other", "editor", 1),
+        ])
+    });
+    assert_eq!(result.workspace_order, vec![0, 1]);
+    assert_eq!(
+        result
+            .groups
+            .iter()
+            .map(|g| g.key.as_str())
+            .collect::<Vec<_>>(),
+        vec!["a", "b"]
+    );
+}
+
+#[test]
+fn overview_keeps_its_application_scope_when_focus_changes_and_windows_disappear() {
+    let result = refresh(Refresh {
+        window_mode: true,
+        overview_app: Some("app:terminal".into()),
+        opened: true,
+        rows: vec![
+            application_window("remaining", "terminal", 2),
+            application_window("browser", "browser", 1),
+        ],
+        previous_windows: vec![
+            application_window("gone", "terminal", 1),
+            application_window("remaining", "terminal", 2),
+        ],
+        active_key: Some("browser".into()),
+        selected_key: "gone".into(),
+        selected_index: 0,
+        frozen_history: strings(&["gone", "remaining"]),
+        ..Refresh::default()
+    });
+    assert!(result.changed);
+    assert_eq!(result.groups.len(), 1);
+    assert_eq!(result.groups[0].key, "remaining");
+    assert_eq!(result.selected_index, 0);
+    let empty = refresh(Refresh {
+        window_mode: true,
+        overview_app: Some("app:terminal".into()),
+        ..opening(vec![application_window("browser", "browser", 1)])
+    });
+    assert!(empty.groups.is_empty());
+    assert!(empty.frozen_history.is_empty());
+    assert_eq!(empty.selected_index, -1);
+}
+
+#[test]
+fn overview_does_not_merge_windows_without_an_application_identifier() {
+    let result = refresh(Refresh {
+        window_mode: true,
+        overview_app: Some("window:one".into()),
+        ..opening(vec![window("one", 1), window("two", 2)])
+    });
+    assert_eq!(result.groups.len(), 1);
+    assert_eq!(result.groups[0].key, "one");
+}
